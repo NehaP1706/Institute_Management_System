@@ -2,17 +2,23 @@
 
 The combined version with all screens side by side for ease of view: 
 
-```https://www.figma.com/design/rcVPMbPhUpKGMtuUlSFnsM/DASS_A3?node-id=1-2&t=kENBvTTzQoORw2Mm-1```
+```
+https://www.figma.com/design/rcVPMbPhUpKGMtuUlSFnsM/DASS_A3?node-id=1-2&t=kENBvTTzQoORw2Mm-1
+```
 
 ### 1. Wireframes: 
 Low fidelity wire frame sketches with placeholder texts for images, icons and boxed layouts for the IMS system can be accessed here: 
 
-```https://www.figma.com/design/IPgDIidK195OIxKPzJ6FrI/Untitled?node-id=1-878&t=kENBvTTzQoORw2Mm-1```
+```
+https://www.figma.com/design/IPgDIidK195OIxKPzJ6FrI/Untitled?node-id=1-878&t=kENBvTTzQoORw2Mm-1
+```
 
 ### 2. Mock UI (High-Fidelity): 
 High fidelity wireframes (Mock UI) for the system includes colors, shadows, highlights and example images to simulate after-deployment state can be accessed here: 
 
-```https://www.figma.com/design/Ss0KN1WRkW5ebK0XLf3UFJ/Untitled?node-id=0-1&t=kENBvTTzQoORw2Mm-1```
+```
+https://www.figma.com/design/Ss0KN1WRkW5ebK0XLf3UFJ/Untitled?node-id=0-1&t=kENBvTTzQoORw2Mm-1
+```
 
 ### 3. Design Inspiration: 
 As present in the side-by-side view of the high fidelity wireframes linked above, the various apps that have been considered for the design of the system are as follows:
