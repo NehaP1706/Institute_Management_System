@@ -15,8 +15,9 @@ class IMSViewModel : ViewModel() {
         private set
 
     fun login(username: String, password: String) {
-        val user: User? = (currentUser?.login("$username:$password")
-            ?: StubRepository.login("$username:$password")) as User?
+        // Strip email domain so "admin@ims.ac.in" → "admin" to match stub credentials
+        val localPart = username.substringBefore("@").trim()
+        val user = StubRepository.login("$localPart:$password")
         if (user != null) {
             currentUser = user
             loginError = null
@@ -32,6 +33,13 @@ class IMSViewModel : ViewModel() {
 
     fun getCurrentUserRole(): String =
         currentUser?.let { StubRepository.getUserRole(it) } ?: ""
+
+    fun getCurrentUserEmail(): String = when (currentUser?.userId) {
+        "u1" -> "admin@ims.edu"
+        "u2" -> "alex@ims.edu"
+        "u3" -> "ramesh@ims.edu"
+        else -> ""
+    }
 
     fun isAdmin(): Boolean = getCurrentUserRole() == "Admin"
     fun isFaculty(): Boolean = getCurrentUserRole() == "Faculty"
@@ -76,6 +84,12 @@ class IMSViewModel : ViewModel() {
         StubRepository.computeAttendancePercent(
             StubRepository.sampleStudent.studentId, courseId
         )
+
+    fun getAttendanceForCourse(courseId: String): List<AttendanceRecord> =
+        StubRepository.getAttendanceForCourse(courseId)
+
+    fun saveAttendance(record: AttendanceRecord) =
+        StubRepository.saveAttendance(record)
 
     // ── Registration (Sign Up) ────────────────────────────────────────────────
     fun registerUser(name: String, email: String, password: String): Boolean {

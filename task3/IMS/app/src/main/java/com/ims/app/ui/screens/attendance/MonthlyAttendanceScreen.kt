@@ -31,16 +31,18 @@ import com.ims.app.ui.theme.*
 fun MonthlyAttendanceScreen(
     viewModel: IMSViewModel,
     currentRoute: String,
-    onNavigate: (String) -> Unit
+    onNavigate: (String) -> Unit,
+    onSwitchToDaily: (() -> Unit)? = null   // non-null when embedded from AttendanceScreen
 ) {
     val months = listOf("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
     var selectedMonth by remember { mutableStateOf("Apr") }
     var selectedTab   by remember { mutableStateOf(0) }   // 0=Attendance, 1=Results, 2=Report
+    var viewModeMenuExpanded by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             HeaderTopBar(
-                title    = "Attendance – Admin",
+                title    = if (onSwitchToDaily != null) "Attendance" else "Attendance – Admin",
                 userName = viewModel.getCurrentUserName(),
                 userRole = viewModel.getCurrentUserRole(),
                 onNavigate = onNavigate
@@ -62,6 +64,59 @@ fun MonthlyAttendanceScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // ── View-mode toggle (only shown when launched from student AttendanceScreen) ──
+            if (onSwitchToDaily != null) {
+                item {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    ) {
+                        Box {
+                            Box(
+                                Modifier
+                                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
+                                    .background(com.ims.app.ui.theme.SurfaceVar)
+                                    .clickable { viewModeMenuExpanded = true }
+                                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text("Monthly", color = com.ims.app.ui.theme.OnSurface, fontSize = 12.sp)
+                                    androidx.compose.material3.Icon(
+                                        Icons.Default.KeyboardArrowDown, null,
+                                        tint = com.ims.app.ui.theme.OnSurface,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                            }
+                            androidx.compose.material3.DropdownMenu(
+                                expanded         = viewModeMenuExpanded,
+                                onDismissRequest = { viewModeMenuExpanded = false },
+                                modifier         = Modifier.background(com.ims.app.ui.theme.SurfaceVar)
+                            ) {
+                                androidx.compose.material3.DropdownMenuItem(
+                                    text    = { Text("Daily",   color = com.ims.app.ui.theme.OnBackground) },
+                                    onClick = { viewModeMenuExpanded = false; onSwitchToDaily() }
+                                )
+                                androidx.compose.material3.DropdownMenuItem(
+                                    text    = { Text("Monthly", color = com.ims.app.ui.theme.Primary, fontWeight = FontWeight.Bold) },
+                                    onClick = { viewModeMenuExpanded = false },
+                                    leadingIcon = {
+                                        androidx.compose.material3.Icon(
+                                            Icons.Default.Check, null,
+                                            tint = com.ims.app.ui.theme.Primary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             // Tab row (Attendance / Results / Report)
             item {
                 TabRow(
@@ -266,4 +321,3 @@ private fun CourseAttendanceRow(title: String, code: String, pct: Float) {
         }
     }
 }
-

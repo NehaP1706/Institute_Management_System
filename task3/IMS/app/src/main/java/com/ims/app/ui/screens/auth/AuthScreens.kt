@@ -28,22 +28,34 @@ import androidx.compose.ui.unit.sp
 import com.ims.app.ui.IMSViewModel
 import com.ims.app.ui.theme.*
 
+/**
+ * Combined Login + Sign-Up screen matching the second Figma reference:
+ *  - Globe icon top-right
+ *  - Logo + title centred
+ *  - Login / Sign Up tab switcher (teal pill highlight)
+ *  - Dark-teal card wrapping the input fields with uppercase labels
+ *  - Quick-login chips retained for dev convenience
+ *  - "By continuing…" footer text
+ *
+ * The original separate [SignUpScreen] composable is no longer needed;
+ * sign-up is handled by the tab inside this single screen.
+ */
 @Composable
 fun LoginScreen(
     viewModel: IMSViewModel,
     onLoginSuccess: () -> Unit,
     onNavigateToSignUp: () -> Unit   // kept for nav-graph back-compat; unused internally
 ) {
-    // Tab state 
+    // ── Tab state ────────────────────────────────────────────────────────
     var isLoginTab by remember { mutableStateOf(true) }
 
-    // Login fields
+    // ── Login fields ─────────────────────────────────────────────────────
     var loginEmail    by remember { mutableStateOf("") }
     var loginPassword by remember { mutableStateOf("") }
     var showLoginPass by remember { mutableStateOf(false) }
     val loginError = viewModel.loginError
 
-    // Sign-up fields
+    // ── Sign-up fields ───────────────────────────────────────────────────
     var name             by remember { mutableStateOf("") }
     var signUpEmail      by remember { mutableStateOf("") }
     var signUpPass       by remember { mutableStateOf("") }
@@ -61,7 +73,7 @@ fun LoginScreen(
             .fillMaxSize()
             .background(Background)
     ) {
-        // language icon
+        // ── Globe / language icon ─────────────────────────────────────────
         IconButton(
             onClick = { /* language picker placeholder */ },
             modifier = Modifier
@@ -75,7 +87,7 @@ fun LoginScreen(
             )
         }
 
-        // Centred body
+        // ── Centred body ──────────────────────────────────────────────────
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -118,7 +130,7 @@ fun LoginScreen(
 
             Spacer(Modifier.height(28.dp))
 
-            // Tab switcher
+            // ── Tab switcher ──────────────────────────────────────────────
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -155,7 +167,7 @@ fun LoginScreen(
 
             Spacer(Modifier.height(20.dp))
 
-            // Teal card
+            // ── Teal card ─────────────────────────────────────────────────
             Surface(
                 shape = RoundedCornerShape(32.dp),
                 color = Color(0xFF0F8584),
@@ -164,7 +176,7 @@ fun LoginScreen(
                 Column(Modifier.padding(horizontal = 20.dp, vertical = 24.dp)) {
 
                     if (isLoginTab) {
-                        //LOGIN CONTENT
+                        // ── LOGIN CONTENT ─────────────────────────────────
 
                         // Quick-login chips
                         Text(
@@ -274,7 +286,7 @@ fun LoginScreen(
                         }
 
                     } else {
-                        // SIGN-UP CONTENT
+                        // ── SIGN-UP CONTENT ───────────────────────────────
 
                         // Full Name
                         CardFieldLabel("FULL NAME")
@@ -404,7 +416,7 @@ fun LoginScreen(
 
             Spacer(Modifier.height(20.dp))
 
-            //  CTA button
+            // ── CTA button ────────────────────────────────────────────────
             Button(
                 onClick = {
                     if (isLoginTab) {
@@ -443,7 +455,7 @@ fun LoginScreen(
 
             Spacer(Modifier.height(20.dp))
 
-            //  Footer
+            // ── Footer ────────────────────────────────────────────────────
             Text(
                 text = "By continuing you agree to our\nTerms & Privacy Policy",
                 color = OnSurface.copy(alpha = 0.45f),
@@ -455,7 +467,7 @@ fun LoginScreen(
     }
 }
 
-// Helpers
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Uppercase label rendered above each field inside the teal card. */
 @Composable
