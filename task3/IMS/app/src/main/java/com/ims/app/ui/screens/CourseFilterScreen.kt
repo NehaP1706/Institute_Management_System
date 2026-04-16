@@ -12,15 +12,23 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ims.app.data.model.CourseType
+import com.ims.app.data.repository.StubRepository
 import com.ims.app.ui.IMSViewModel
-import com.ims.app.ui.components.*
+import com.ims.app.ui.components.BottomNavBar
+import com.ims.app.ui.components.HeaderTopBar
+import com.ims.app.ui.components.SectionHeader
 import com.ims.app.ui.theme.*
 
-/** Matches "Course Filter ..." screen in Figma */
+/**
+ * Matches "Course Filter" screen in Figma.
+ * Shows all courses with search + type-filter chips.
+ * The course picker sheet has moved to AttendanceScreen / AdminAttendanceScreen.
+ */
 @Composable
 fun CourseFilterScreen(
     viewModel: IMSViewModel,
@@ -28,19 +36,19 @@ fun CourseFilterScreen(
     onNavigate: (String) -> Unit
 ) {
     var searchQuery by remember { mutableStateOf("") }
-    val filtered = viewModel.getFilteredCourses()
-        .filter {
-            searchQuery.isBlank() ||
-                    it.title.contains(searchQuery, ignoreCase = true) ||
-                    it.courseCode.contains(searchQuery, ignoreCase = true)
-        }
+
+    val filtered = viewModel.getFilteredCourses().filter {
+        searchQuery.isBlank() ||
+                it.title.contains(searchQuery, ignoreCase = true) ||
+                it.courseCode.contains(searchQuery, ignoreCase = true)
+    }
 
     Scaffold(
         topBar = {
             HeaderTopBar(
-                title    = "Courses",
-                userName = viewModel.getCurrentUserName(),
-                userRole = viewModel.getCurrentUserRole(),
+                title      = "Courses",
+                userName   = viewModel.getCurrentUserName(),
+                userRole   = viewModel.getCurrentUserRole(),
                 onNavigate = onNavigate
             )
         },
@@ -78,7 +86,6 @@ fun CourseFilterScreen(
 
             Spacer(Modifier.height(12.dp))
 
-            // Course type filter chips (from CourseType enum)
             SectionHeader("Filter by Type")
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 item {
@@ -86,12 +93,7 @@ fun CourseFilterScreen(
                         selected = viewModel.selectedCourseFilter == null,
                         onClick  = { viewModel.selectedCourseFilter = null },
                         label    = { Text("All", fontSize = 12.sp) },
-                        colors   = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Primary,
-                            selectedLabelColor     = OnPrimary,
-                            containerColor         = SurfaceVar,
-                            labelColor             = OnSurface
-                        )
+                        colors   = filterChipColors()
                     )
                 }
                 items(CourseType.values().toList()) { type ->
@@ -102,12 +104,7 @@ fun CourseFilterScreen(
                                 if (viewModel.selectedCourseFilter == type) null else type
                         },
                         label    = { Text(type.name, fontSize = 12.sp) },
-                        colors   = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Primary,
-                            selectedLabelColor     = OnPrimary,
-                            containerColor         = SurfaceVar,
-                            labelColor             = OnSurface
-                        )
+                        colors   = filterChipColors()
                     )
                 }
             }
@@ -129,7 +126,7 @@ fun CourseFilterScreen(
                         type       = course.type.name,
                         semester   = course.semester,
                         instructor = course.instructor.firstOrNull()?.employee?.user?.let {
-                            com.ims.app.data.repository.StubRepository.getUserDisplayName(it)
+                            StubRepository.getUserDisplayName(it)
                         } ?: "TBA"
                     )
                 }
@@ -138,6 +135,7 @@ fun CourseFilterScreen(
     }
 }
 
+// ── Course detail card ────────────────────────────────────────────────────────
 @Composable
 private fun CourseDetailCard(
     courseCode: String,
@@ -158,7 +156,6 @@ private fun CourseDetailCard(
                     Text(title,      color = OnBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                     Text(courseCode, color = Primary,      fontSize   = 12.sp)
                 }
-                // Type badge
                 androidx.compose.foundation.layout.Box(
                     Modifier
                         .background(PrimaryDark.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
@@ -169,19 +166,27 @@ private fun CourseDetailCard(
             }
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                InfoChip(icon = Icons.Default.CreditScore,  label = "$credits Credits")
-                InfoChip(icon = Icons.Default.School,       label = semester)
-                InfoChip(icon = Icons.Default.Person,       label = instructor)
+                InfoChip(icon = Icons.Default.CreditScore, label = "$credits Credits")
+                InfoChip(icon = Icons.Default.School,      label = semester)
+                InfoChip(icon = Icons.Default.Person,      label = instructor)
             }
         }
     }
 }
 
 @Composable
-private fun InfoChip(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String) {
+private fun InfoChip(icon: ImageVector, label: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(icon, null, tint = Primary, modifier = Modifier.size(13.dp))
         Spacer(Modifier.width(3.dp))
         Text(label, color = OnSurface, fontSize = 11.sp)
     }
 }
+
+@Composable
+private fun filterChipColors() = FilterChipDefaults.filterChipColors(
+    selectedContainerColor = Primary,
+    selectedLabelColor     = OnPrimary,
+    containerColor         = SurfaceVar,
+    labelColor             = OnSurface
+)

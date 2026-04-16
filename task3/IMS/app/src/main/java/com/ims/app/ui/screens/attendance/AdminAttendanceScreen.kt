@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -26,14 +25,18 @@ import com.ims.app.ui.theme.*
 import java.util.Date
 
 /** Matches "Admin Attend..." and "Manage Attendance" screens in Figma */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminAttendanceScreen(
     viewModel: IMSViewModel,
     currentRoute: String,
     onNavigate: (String) -> Unit
 ) {
-    var selectedCourse by remember { mutableStateOf(StubRepository.courses.first()) }
-    // Local mutable copy of attendance statuses for this session
+    var selectedCourse   by remember { mutableStateOf(StubRepository.courses.first()) }
+    var showCourseSheet  by remember { mutableStateOf(false) }
+    var pendingCourse    by remember { mutableStateOf(selectedCourse) }
+    var sheetSearch      by remember { mutableStateOf("") }
+
     val statusMap = remember {
         mutableStateMapOf<String, AttendanceStatus>().also { map ->
             StubRepository.attendanceRecords.forEach { r ->
@@ -43,21 +46,48 @@ fun AdminAttendanceScreen(
     }
     var saved by remember { mutableStateOf(false) }
 
+    // ── Course bottom sheet ───────────────────────────────────────────────────
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    if (showCourseSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showCourseSheet = false },
+            sheetState       = sheetState,
+            containerColor   = Color(0xFF111E2B),
+            dragHandle       = null
+        ) {
+            CoursePickerSheetContent(
+                courses        = StubRepository.courses.filter {
+                    sheetSearch.isBlank() ||
+                            it.title.contains(sheetSearch, ignoreCase = true) ||
+                            it.courseCode.contains(sheetSearch, ignoreCase = true)
+                },
+                searchQuery    = sheetSearch,
+                onSearchChange = { sheetSearch = it },
+                pendingCourse  = pendingCourse,
+                onSelect       = { pendingCourse = it },
+                onBack         = { showCourseSheet = false },
+                onClose        = { showCourseSheet = false; sheetSearch = "" },
+                onApply        = {
+                    selectedCourse  = pendingCourse
+                    saved           = false
+                    showCourseSheet = false
+                    sheetSearch     = ""
+                }
+            )
+        }
+    }
+
     Scaffold(
         topBar = {
             HeaderTopBar(
-                title    = "Manage Attendance",
-                userName = viewModel.getCurrentUserName(),
-                userRole = viewModel.getCurrentUserRole(),
+                title      = "Manage Attendance",
+                userName   = viewModel.getCurrentUserName(),
+                userRole   = viewModel.getCurrentUserRole(),
                 onNavigate = onNavigate
             )
         },
         bottomBar = {
-            BottomNavBar(
-                currentRoute = currentRoute,
-                isAdmin      = true,
-                onNavigate   = onNavigate
-            )
+            BottomNavBar(currentRoute = currentRoute, isAdmin = true, onNavigate = onNavigate)
         },
         containerColor = Background
     ) { padding ->
@@ -67,31 +97,24 @@ fun AdminAttendanceScreen(
                 .padding(padding)
                 .padding(16.dp)
         ) {
-            // Course selector chips
+            // ── Course selector button ────────────────────────────────────────
             SectionHeader("Select Course")
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(StubRepository.courses) { course ->
-                    val selected = course.courseId == selectedCourse.courseId
-                    FilterChip(
-                        selected = selected,
-                        onClick  = { selectedCourse = course; saved = false },
-                        label    = { Text(course.courseCode, fontSize = 12.sp) },
-                        colors   = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor    = Primary,
-                            selectedLabelColor        = OnPrimary,
-                            containerColor            = SurfaceVar,
-                            labelColor                = OnSurface
-                        )
-                    )
-                }
-            }
+            FilterChipButton(
+                label   = "${selectedCourse.courseCode}  –  ${selectedCourse.title}",
+                onClick = {
+                    pendingCourse   = selectedCourse
+                    sheetSearch     = ""
+                    showCourseSheet = true
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
 
             Spacer(Modifier.height(12.dp))
 
-            // Advanced course screen label (matches Figma)
+            // Selected course card
             Card(
-                colors = CardDefaults.cardColors(containerColor = CardBg),
-                shape  = RoundedCornerShape(12.dp),
+                colors   = CardDefaults.cardColors(containerColor = CardBg),
+                shape    = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -99,8 +122,8 @@ fun AdminAttendanceScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text(selectedCourse.title, color = Primary, fontWeight = FontWeight.Bold)
-                        Text(selectedCourse.courseCode, color = OnSurface, fontSize = 12.sp)
+                        Text(selectedCourse.title,      color = Primary,    fontWeight = FontWeight.Bold)
+                        Text(selectedCourse.courseCode, color = OnSurface,  fontSize   = 12.sp)
                     }
                     Text(selectedCourse.semester, color = OnSurface, fontSize = 12.sp)
                 }
@@ -109,38 +132,37 @@ fun AdminAttendanceScreen(
             Spacer(Modifier.height(12.dp))
             SectionHeader("Mark Attendance")
 
-            // Student list with attendance toggle
+            // Student list
             LazyColumn(
                 Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Show the sample student (in production, list all enrolled students)
                 val students = listOf(StubRepository.sampleStudent)
                 items(students) { student ->
-                    val key = student.studentId + "_" + selectedCourse.courseId
+                    val key    = student.studentId + "_" + selectedCourse.courseId
                     val status = statusMap[key] ?: AttendanceStatus.UNMARKED
                     AttendanceMarkRow(
-                        student = student,
-                        status  = status,
+                        student  = student,
+                        status   = status,
                         onStatusChange = { newStatus ->
                             statusMap[key] = newStatus
-                            saved = false
-                            // Calls generateDailyReport via AttendanceRecord
-                            val record = AttendanceRecord(
-                                attendanceId = key,
-                                student      = student,
-                                course       = selectedCourse,
-                                date         = Date(),
-                                status       = newStatus,
-                                remarks      = ""
+                            saved          = false
+                            viewModel.markAttendance(
+                                AttendanceRecord(
+                                    attendanceId = key,
+                                    student      = student,
+                                    course       = selectedCourse,
+                                    date         = Date(),
+                                    status       = newStatus,
+                                    remarks      = ""
+                                )
                             )
-                            viewModel.markAttendance(record)
                         }
                     )
                 }
             }
 
-            // Save Attendance Entry button (matches Figma)
+            // Save button
             Button(
                 onClick  = { saved = true },
                 modifier = Modifier.fillMaxWidth().height(50.dp),
@@ -182,15 +204,12 @@ private fun AttendanceMarkRow(
                 Column(Modifier.weight(1f)) {
                     Text(
                         StubRepository.getUserDisplayName(student.user),
-                        color      = OnBackground,
-                        fontWeight = FontWeight.Medium,
-                        fontSize   = 13.sp
+                        color = OnBackground, fontWeight = FontWeight.Medium, fontSize = 13.sp
                     )
                     Text(student.studentId, color = OnSurface, fontSize = 11.sp)
                 }
             }
             Spacer(Modifier.height(8.dp))
-            // Status chips
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 AttendanceStatus.values().forEach { s ->
                     val selected = status == s
