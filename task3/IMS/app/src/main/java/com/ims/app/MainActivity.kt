@@ -16,7 +16,6 @@ import com.ims.app.ui.screens.attendance.AdminAttendanceScreen
 import com.ims.app.ui.screens.attendance.AttendanceScreen
 import com.ims.app.ui.screens.attendance.MonthlyAttendanceScreen
 import com.ims.app.ui.screens.auth.LoginScreen
-import com.ims.app.ui.screens.auth.SignUpScreen
 import com.ims.app.ui.screens.dashboard.DashboardScreen
 import com.ims.app.ui.screens.timetable.AdminTimetableScreen
 import com.ims.app.ui.screens.timetable.TimetableScreen
@@ -65,19 +64,11 @@ fun IMSApp(viewModel: IMSViewModel) {
                         popUpTo(Screen.Login.route) { inclusive = true }
                     }
                 },
-                onNavigateToSignUp = { navController.navigate(Screen.SignUp.route) }
+                onNavigateToSignUp = { }
             )
         }
 
-        composable(Screen.SignUp.route) {
-            SignUpScreen(
-                viewModel         = viewModel,
-                onSignUpSuccess   = { navController.navigate(Screen.Login.route) {
-                    popUpTo(Screen.SignUp.route) { inclusive = true }
-                }},
-                onNavigateToLogin = { navController.popBackStack() }
-            )
-        }
+
 
         // ── Dashboard ─────────────────────────────────────────────────────────
         composable(Screen.Dashboard.route) {
