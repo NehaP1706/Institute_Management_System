@@ -11,7 +11,6 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.ims.app.ui.IMSViewModel
 import com.ims.app.ui.Screen
-import com.ims.app.ui.screens.CourseFilterScreen
 import com.ims.app.ui.screens.attendance.AdminAttendanceScreen
 import com.ims.app.ui.screens.attendance.AttendanceScreen
 import com.ims.app.ui.screens.attendance.MonthlyAttendanceScreen
@@ -121,15 +120,6 @@ fun IMSApp(viewModel: IMSViewModel) {
 
         composable(Screen.AdminTimetable.route) {
             AdminTimetableScreen(
-                viewModel    = viewModel,
-                currentRoute = currentRoute,
-                onNavigate   = navigate
-            )
-        }
-
-        // ── Course Filter ─────────────────────────────────────────────────────
-        composable(Screen.CourseFilter.route) {
-            CourseFilterScreen(
                 viewModel    = viewModel,
                 currentRoute = currentRoute,
                 onNavigate   = navigate

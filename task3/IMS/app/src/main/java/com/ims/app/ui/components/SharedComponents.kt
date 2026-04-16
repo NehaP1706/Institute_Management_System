@@ -77,12 +77,10 @@ fun BottomNavBar(
         BottomNavItem("Home",       Icons.Default.Home,            "dashboard"),
         BottomNavItem("Attendance", Icons.Default.CheckCircle,     "admin_attendance"),
         BottomNavItem("Timetable",  Icons.Default.CalendarMonth,   "admin_timetable"),
-        BottomNavItem("Courses",    Icons.Default.Book,            "course_filter"),
     ) else listOf(
         BottomNavItem("Home",       Icons.Default.Home,            "dashboard"),
         BottomNavItem("Attendance", Icons.Default.CheckCircle,     "attendance"),
         BottomNavItem("Timetable",  Icons.Default.CalendarMonth,   "timetable"),
-        BottomNavItem("Courses",    Icons.Default.Book,            "course_filter"),
     )
 
     NavigationBar(containerColor = Surface) {
