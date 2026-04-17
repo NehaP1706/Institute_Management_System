@@ -1,5 +1,6 @@
 package com.ims.app.ui.screens.attendance
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,6 +19,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -28,13 +30,13 @@ import com.ims.app.data.model.Course
 import com.ims.app.ui.IMSViewModel
 import com.ims.app.ui.components.BottomNavBar
 import com.ims.app.ui.theme.*
+import com.ims.app.util.exportDailyAttendancePdf
 import java.text.SimpleDateFormat
 import java.util.*
 
-// ─────────────────────────────────────────────────────────────────────────────
 private enum class ViewMode { DAILY, MONTHLY }
 
-// ── Course icon helper (mirrors CourseFilterScreen) ───────────────────────────
+// Course icon helper
 private fun iconForCourse(courseCode: String): ImageVector = when {
     courseCode.startsWith("CS1")  -> Icons.Default.Terminal
     courseCode.startsWith("CS2")  -> Icons.Default.Psychology
@@ -46,12 +48,10 @@ private fun iconForCourse(courseCode: String): ImageVector = when {
 }
 
 /**
- * Student read-only Attendance screen.
+ * Student read-only Attendance screen – Daily view.
  *
- * Course filter  → opens the Figma-style ModalBottomSheet course picker
- *                  (same UI as the old CourseFilterScreen sheet).
- * Daily/Monthly  → toggles between daily log and MonthlyAttendanceScreen.
- * From / To      → Material3 DatePickerDialog; filters log by date range.
+ * PDF icon → exports a daily attendance report for ALL courses, filtered
+ * by the current From/To date range (if set).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,7 +60,9 @@ fun AttendanceScreen(
     currentRoute: String,
     onNavigate: (String) -> Unit
 ) {
-    // ── Filter state ──────────────────────────────────────────────────────────
+    val context = LocalContext.current
+
+    // Filter state
     var selectedCourse        by remember { mutableStateOf(viewModel.allCourses.firstOrNull()) }
     var showCourseSheet       by remember { mutableStateOf(false) }
     var pendingCourse         by remember { mutableStateOf(selectedCourse) }
@@ -74,7 +76,10 @@ fun AttendanceScreen(
     var showFromPicker        by remember { mutableStateOf(false) }
     var showToPicker          by remember { mutableStateOf(false) }
 
-    // ── Monthly mode – hand off entirely ─────────────────────────────────────
+    // Export-progress flag (keeps icon from being tapped twice)
+    var isExporting by remember { mutableStateOf(false) }
+
+    // Monthly mode – hand off entirely
     if (viewMode == ViewMode.MONTHLY) {
         MonthlyAttendanceScreen(
             viewModel       = viewModel,
@@ -85,7 +90,19 @@ fun AttendanceScreen(
         return
     }
 
-    // ── Derived data ──────────────────────────────────────────────────────────
+    //  Derived data (ALL courses, date-filtered)
+    val allRecordsForExport by remember(fromDateMillis, toDateMillis) {
+        derivedStateOf {
+            viewModel.getAttendanceRecords().filter { r ->
+                val ms        = r.date.time
+                val afterFrom = fromDateMillis?.let { ms >= it } ?: true
+                val beforeTo  = toDateMillis?.let  { ms <= it + 86_400_000L } ?: true
+                afterFrom && beforeTo
+            }
+        }
+    }
+
+    // Records shown on screen (filtered by selected course too)
     val baseRecords by remember(selectedCourse) {
         derivedStateOf {
             selectedCourse?.let { viewModel.getAttendanceForCourse(it.courseId) }
@@ -108,7 +125,7 @@ fun AttendanceScreen(
     val totalMarked  = displayRecords.count { it.status != AttendanceStatus.UNMARKED }
     val percent      = if (totalMarked > 0) presentCount * 100f / totalMarked else 0f
 
-    // ── Date picker states ────────────────────────────────────────────────────
+    //  Date picker states
     val fromPickerState = rememberDatePickerState(
         initialSelectedDateMillis = fromDateMillis ?: System.currentTimeMillis()
     )
@@ -116,7 +133,7 @@ fun AttendanceScreen(
         initialSelectedDateMillis = toDateMillis ?: System.currentTimeMillis()
     )
 
-    // ── Course bottom sheet ───────────────────────────────────────────────────
+    //  Course bottom sheet
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     if (showCourseSheet) {
         ModalBottomSheet(
@@ -131,13 +148,13 @@ fun AttendanceScreen(
                             it.title.contains(sheetSearch, ignoreCase = true) ||
                             it.courseCode.contains(sheetSearch, ignoreCase = true)
                 },
-                searchQuery   = sheetSearch,
+                searchQuery    = sheetSearch,
                 onSearchChange = { sheetSearch = it },
-                pendingCourse = pendingCourse,
-                onSelect      = { pendingCourse = it },
-                onBack        = { showCourseSheet = false },
-                onClose       = { showCourseSheet = false; sheetSearch = "" },
-                onApply       = {
+                pendingCourse  = pendingCourse,
+                onSelect       = { pendingCourse = it },
+                onBack         = { showCourseSheet = false },
+                onClose        = { showCourseSheet = false; sheetSearch = "" },
+                onApply        = {
                     selectedCourse  = pendingCourse
                     showCourseSheet = false
                     sheetSearch     = ""
@@ -146,7 +163,7 @@ fun AttendanceScreen(
         }
     }
 
-    // ── Date picker dialogs ───────────────────────────────────────────────────
+    //  Date picker dialogs
     if (showFromPicker) {
         DatePickerDialog(
             onDismissRequest = { showFromPicker = false },
@@ -187,7 +204,7 @@ fun AttendanceScreen(
         }
     }
 
-    // ── Scaffold ──────────────────────────────────────────────────────────────
+    //  Scaffold
     Scaffold(
         topBar = {
             TopAppBar(
@@ -207,8 +224,41 @@ fun AttendanceScreen(
                     )
                 },
                 actions = {
-                    IconButton(onClick = { /* PDF stub */ }) {
-                        Icon(Icons.Default.PictureAsPdf, "Export PDF", tint = OnBackground)
+                    // PDF export button
+                    IconButton(
+                        onClick = {
+                            if (isExporting) return@IconButton
+                            if (allRecordsForExport.isEmpty()) {
+                                Toast.makeText(
+                                    context,
+                                    "No attendance records to export.",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                return@IconButton
+                            }
+                            isExporting = true
+                            try {
+                                exportDailyAttendancePdf(
+                                    context    = context,
+                                    records    = allRecordsForExport,
+                                    allCourses = viewModel.allCourses,
+                                    fromMillis = fromDateMillis,
+                                    toMillis   = toDateMillis
+                                )
+                            } finally {
+                                isExporting = false
+                            }
+                        }
+                    ) {
+                        if (isExporting) {
+                            CircularProgressIndicator(
+                                modifier  = Modifier.size(20.dp),
+                                color     = Primary,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(Icons.Default.PictureAsPdf, "Export PDF", tint = OnBackground)
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Background)
@@ -227,14 +277,14 @@ fun AttendanceScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
 
-            // ── Filter row ────────────────────────────────────────────────────
+            //  Filter row
             item {
                 Spacer(Modifier.height(4.dp))
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier              = Modifier.fillMaxWidth()
                 ) {
-                    // 1. Course picker – opens bottom sheet ───────────────────
+                    // 1. Course picker
                     FilterChipButton(
                         label    = selectedCourse?.courseCode ?: "Course",
                         modifier = Modifier.weight(1f),
@@ -245,7 +295,7 @@ fun AttendanceScreen(
                         }
                     )
 
-                    // 2. Daily / Monthly toggle ───────────────────────────────
+                    // 2. Daily / Monthly toggle
                     Box(modifier = Modifier.weight(0.9f)) {
                         FilterChipButton(
                             label    = if (viewMode == ViewMode.DAILY) "Daily" else "Monthly",
@@ -277,20 +327,20 @@ fun AttendanceScreen(
                         }
                     }
 
-                    // 3. From date ────────────────────────────────────────────
+                    // 3. From date
                     FilterDateButton(
-                        label   = fromDateMillis?.let { shortDate(it) } ?: "From",
+                        label    = fromDateMillis?.let { shortDate(it) } ?: "From",
                         modifier = Modifier.weight(1f),
-                        active  = fromDateMillis != null,
-                        onClick = { showFromPicker = true }
+                        active   = fromDateMillis != null,
+                        onClick  = { showFromPicker = true }
                     )
 
-                    // 4. To date ──────────────────────────────────────────────
+                    // 4. To date
                     FilterDateButton(
-                        label   = toDateMillis?.let { shortDate(it) } ?: "To",
+                        label    = toDateMillis?.let { shortDate(it) } ?: "To",
                         modifier = Modifier.weight(0.8f),
-                        active  = toDateMillis != null,
-                        onClick = { showToPicker = true }
+                        active   = toDateMillis != null,
+                        onClick  = { showToPicker = true }
                     )
                 }
 
@@ -321,7 +371,7 @@ fun AttendanceScreen(
                 }
             }
 
-            // ── Hero summary card ─────────────────────────────────────────────
+            //  Hero summary card
             item {
                 selectedCourse?.let { course ->
                     AttendanceSummaryHeroCard(
@@ -333,7 +383,7 @@ fun AttendanceScreen(
                 }
             }
 
-            // ── Section header ────────────────────────────────────────────────
+            // Section header
             item {
                 Text(
                     "ATTENDANCE LOG",
@@ -345,7 +395,7 @@ fun AttendanceScreen(
                 )
             }
 
-            // ── Log rows ──────────────────────────────────────────────────────
+            // Log rows
             if (displayRecords.isEmpty()) {
                 item {
                     Text(
@@ -364,18 +414,18 @@ fun AttendanceScreen(
     }
 }
 
-// ── Figma Course Picker Bottom Sheet ─────────────────────────────────────────
+//  Figma Course Picker Bottom Sheet
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun CoursePickerSheetContent(
-    courses: List<Course>,
-    searchQuery: String,
+    courses:        List<Course>,
+    searchQuery:    String,
     onSearchChange: (String) -> Unit,
-    pendingCourse: Course?,
-    onSelect: (Course) -> Unit,
-    onBack: () -> Unit,
-    onClose: () -> Unit,
-    onApply: () -> Unit
+    pendingCourse:  Course?,
+    onSelect:       (Course) -> Unit,
+    onBack:         () -> Unit,
+    onClose:        () -> Unit,
+    onApply:        () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -474,7 +524,7 @@ internal fun CoursePickerSheetContent(
     }
 }
 
-// ── Single row inside the sheet ───────────────────────────────────────────────
+//  Single row inside the sheet
 @Composable
 private fun CoursePickerRow(course: Course, isSelected: Boolean, onClick: () -> Unit) {
     val rowBg     = if (isSelected) Primary  else SurfaceVar
@@ -518,13 +568,13 @@ private fun CoursePickerRow(course: Course, isSelected: Boolean, onClick: () -> 
     }
 }
 
-// ── Hero summary card ─────────────────────────────────────────────────────────
+//  Hero summary card
 @Composable
 private fun AttendanceSummaryHeroCard(
-    courseTitle: String,
-    percent: Float,
+    courseTitle:  String,
+    percent:      Float,
     presentCount: Int,
-    absentCount: Int
+    absentCount:  Int
 ) {
     val ringColor = when {
         percent >= 75f -> Primary
@@ -597,7 +647,7 @@ private fun CircularPercentBadge(percent: Float, ringColor: Color) {
     }
 }
 
-// ── Log row ───────────────────────────────────────────────────────────────────
+// Log row
 @Composable
 private fun AttendanceLogRow(record: AttendanceRecord) {
     val formattedDate = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(record.date)
@@ -650,12 +700,12 @@ private fun AttendanceLogRow(record: AttendanceRecord) {
     }
 }
 
-// ── Shared filter chip components ─────────────────────────────────────────────
+// Shared filter chip components
 @Composable
 internal fun FilterChipButton(
-    label: String,
+    label:    String,
     modifier: Modifier = Modifier,
-    onClick: () -> Unit = {}
+    onClick:  () -> Unit = {}
 ) {
     Box(
         modifier = modifier
@@ -677,9 +727,9 @@ internal fun FilterChipButton(
 
 @Composable
 internal fun FilterDateButton(
-    label: String,
+    label:   String,
     modifier: Modifier  = Modifier,
-    active: Boolean     = false,
+    active:  Boolean     = false,
     onClick: () -> Unit = {}
 ) {
     val bg   = if (active) PrimaryDark else SurfaceVar
@@ -702,7 +752,7 @@ internal fun FilterDateButton(
     }
 }
 
-// ── DatePicker colours ────────────────────────────────────────────────────────
+//  DatePicker colours
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun attendanceDatePickerColors() = DatePickerDefaults.colors(
