@@ -21,7 +21,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import com.ims.app.data.model.*
 import com.ims.app.data.repository.StubRepository
 import com.ims.app.ui.IMSViewModel
@@ -175,18 +174,22 @@ fun AdminTimetableScreen(
         }
     }
 
-    // ── Add / Edit dialog ─────────────────────────────────────────────────────
+    // ── Full-screen Add/Edit — overlays the main scaffold ────────────────────
     if (showAddDialog) {
-        AddTimetableSlotDialog(
+        AddTimetableSlotScreen(
             existingSlot = editingSlot,
             currentSem   = selectedSem,
-            onDismiss    = { showAddDialog = false; editingSlot = null },
+            allRooms     = viewModel.getAllRooms(),
+            existingSlots = viewModel.getTimetableForSemester(selectedSem),
+            courses      = viewModel.allCourses,
+            onBack       = { showAddDialog = false; editingSlot = null },
             onSave       = { slot ->
                 viewModel.addTimetableSlot(slot)
                 showAddDialog = false
                 editingSlot   = null
             }
         )
+        return   // don't render the list scaffold underneath
     }
 
     Scaffold(
@@ -642,160 +645,635 @@ private fun TimetableSlotCard(
     }
 }
 
-// ── Add / Edit dialog ─────────────────────────────────────────────────────────
+// ── Add / Edit Timetable Slot — full screen (Figma "Timetable Slot Selection") ─
+/**
+ * Full-screen replacement for the old Dialog.
+ *
+ * @param existingSlot   Non-null when editing an existing slot.
+ * @param currentSem     Semester string passed from the parent ("Sem 5", "Sem 6", …).
+ * @param allRooms       All available rooms from the ViewModel / repository.
+ * @param existingSlots  All slots already in the timetable (used for conflict detection).
+ * @param courses        All courses available for selection.
+ * @param onBack         Called when the user presses the back arrow — parent hides the screen.
+ * @param onSave         Called with the fully-constructed TimetableSlot on confirmation.
+ */
 @Composable
-private fun AddTimetableSlotDialog(
-    existingSlot: TimetableSlot? = null,
-    currentSem: String,
-    onDismiss: () -> Unit,
-    onSave: (TimetableSlot) -> Unit
+private fun AddTimetableSlotScreen(
+    existingSlot  : TimetableSlot?,
+    currentSem    : String,
+    allRooms      : List<Room>,
+    existingSlots : List<TimetableSlot>,
+    courses       : List<Course>,
+    onBack        : () -> Unit,
+    onSave        : (TimetableSlot) -> Unit
 ) {
-    var selectedCourse by remember { mutableStateOf(existingSlot?.course ?: StubRepository.courses.first()) }
-    var selectedDay    by remember { mutableStateOf(existingSlot?.day    ?: DayEnum.MONDAY) }
-    var startTime      by remember { mutableStateOf(existingSlot?.start  ?: "09:00") }
-    var endTime        by remember { mutableStateOf(existingSlot?.end    ?: "10:00") }
-    var conflictMsg    by remember { mutableStateOf<String?>(null) }
+    // ── Editable state (pre-filled when editing) ──────────────────────────────
+    var selectedCourse by remember { mutableStateOf(existingSlot?.course ?: courses.first()) }
+    var selectedDate   by remember { mutableStateOf(existingSlot?.let { formatSlotDate(it) } ?: todayLabel()) }
+    var startTime      by remember { mutableStateOf(existingSlot?.start ?: "09:00") }
+    var endTime        by remember { mutableStateOf(existingSlot?.end   ?: "10:00") }
+    var selectedRoom   by remember { mutableStateOf<Room?>(existingSlot?.room) }
+    var roomExpanded   by remember { mutableStateOf(false) }
 
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            colors = CardDefaults.cardColors(containerColor = Surface),
-            shape  = RoundedCornerShape(16.dp)
-        ) {
-            Column(
-                Modifier.padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+    // ── Conflict detection (reactive) ─────────────────────────────────────────
+    val conflictInfo: ConflictInfo = remember(selectedRoom, startTime, endTime, selectedDate) {
+        detectSlotConflict(
+            newStart     = startTime,
+            newEnd       = endTime,
+            newRoom      = selectedRoom,
+            existingSlots = existingSlots.filter { it.slotId != existingSlot?.slotId }
+        )
+    }
+
+    Scaffold(
+        topBar = {
+            AddSlotTopBar(
+                isEdit   = existingSlot != null,
+                onBack   = onBack
+            )
+        },
+        bottomBar = {
+            // "Confirm Schedule Slot →" button pinned to the bottom
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Background)
+                    .padding(horizontal = 20.dp, vertical = 16.dp)
             ) {
-                Text(
-                    if (existingSlot == null) "Add Timetable Slot" else "Edit Timetable Slot",
-                    color = Primary, fontWeight = FontWeight.Bold, fontSize = 16.sp
+                Button(
+                    onClick  = {
+                        val room = selectedRoom ?: allRooms.firstOrNull()
+                        ?: Room("rm_default", "LH-101", 120, RoomType.Room100C, "Lecture Block")
+                        onSave(
+                            TimetableSlot(
+                                slotId   = existingSlot?.slotId ?: "new_${System.currentTimeMillis()}",
+                                course   = selectedCourse,
+                                day      = parseDayFromDate(selectedDate),
+                                start    = startTime,
+                                end      = endTime,
+                                room     = room,
+                                semester = currentSem
+                            )
+                        )
+                    },
+                    enabled  = selectedRoom != null && conflictInfo.isAvailable,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(54.dp),
+                    shape    = RoundedCornerShape(28.dp),
+                    colors   = ButtonDefaults.buttonColors(
+                        containerColor         = Primary,
+                        disabledContainerColor = SurfaceVar
+                    )
+                ) {
+                    Text(
+                        "Confirm Schedule Slot",
+                        color      = if (selectedRoom != null && conflictInfo.isAvailable) Color.Black else OnSurface,
+                        fontWeight = FontWeight.Bold,
+                        fontSize   = 16.sp
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Icon(
+                        Icons.Default.ArrowForward,
+                        contentDescription = null,
+                        tint     = if (selectedRoom != null && conflictInfo.isAvailable) Color.Black else OnSurface,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        },
+        containerColor = Background
+    ) { padding ->
+
+        LazyColumn(
+            modifier        = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            item { Spacer(Modifier.height(4.dp)) }
+
+            // ── SUBJECT COURSE ────────────────────────────────────────────
+            item {
+                SlotSectionLabel("SUBJECT COURSE")
+                Spacer(Modifier.height(8.dp))
+                CourseSelector(
+                    courses        = courses,
+                    selectedCourse = selectedCourse,
+                    onSelect       = { selectedCourse = it }
                 )
+            }
 
-                // Course picker
-                Text("Select Course", color = OnSurface, fontSize = 12.sp)
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(StubRepository.courses) { course ->
-                        val sel = course.courseId == selectedCourse.courseId
-                        FilterChip(
-                            selected = sel,
-                            onClick  = { selectedCourse = course; conflictMsg = null },
-                            label    = { Text(course.courseCode, fontSize = 11.sp) },
-                            colors   = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = Primary,
-                                selectedLabelColor     = OnPrimary,
-                                containerColor         = SurfaceVar,
-                                labelColor             = OnSurface
+            // ── DATE  +  TIME SLOT ────────────────────────────────────────
+            item {
+                Row(
+                    modifier              = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        SlotSectionLabel("DATE")
+                        Spacer(Modifier.height(8.dp))
+                        DateSelector(
+                            label    = selectedDate,
+                            onSelect = { selectedDate = it }
+                        )
+                    }
+                    Column(Modifier.weight(1f)) {
+                        SlotSectionLabel("TIME SLOT")
+                        Spacer(Modifier.height(8.dp))
+                        TimeSlotSelector(
+                            start    = startTime,
+                            end      = endTime,
+                            onStartChange = { startTime = it },
+                            onEndChange   = { endTime   = it }
+                        )
+                    }
+                }
+            }
+
+            // ── VENUE SELECTION ───────────────────────────────────────────
+            item {
+                SlotSectionLabel("VENUE SELECTION")
+                Spacer(Modifier.height(8.dp))
+                VenueSelector(
+                    rooms          = allRooms,
+                    selectedRoom   = selectedRoom,
+                    expanded       = roomExpanded,
+                    onToggle       = { roomExpanded = !roomExpanded },
+                    onSelect       = { room ->
+                        selectedRoom = room
+                        roomExpanded = false
+                    },
+                    busyRoomIds    = getBusyRoomIds(startTime, endTime, existingSlots, existingSlot?.slotId)
+                )
+            }
+
+            // ── CONFLICT STATUS BANNER ────────────────────────────────────
+            item {
+                ConflictStatusBanner(conflictInfo)
+            }
+
+            item { Spacer(Modifier.height(8.dp)) }
+        }
+    }
+}
+
+// ── Top bar for Add/Edit screen ───────────────────────────────────────────────
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AddSlotTopBar(isEdit: Boolean, onBack: () -> Unit) {
+    TopAppBar(
+        title = {
+            Text(
+                if (isEdit) "Edit Timetable Slot" else "Add Timetable Slot",
+                color      = OnBackground,
+                fontWeight = FontWeight.Bold,
+                fontSize   = 18.sp
+            )
+        },
+        navigationIcon = {
+            IconButton(onClick = onBack) {
+                Icon(Icons.Default.ArrowBack, "Back", tint = Primary)
+            }
+        },
+        colors = TopAppBarDefaults.topAppBarColors(containerColor = Background)
+    )
+}
+
+// ── Shared section label ──────────────────────────────────────────────────────
+@Composable
+private fun SlotSectionLabel(text: String) {
+    Text(
+        text          = text,
+        color         = OnSurface,
+        fontSize      = 10.sp,
+        fontWeight    = FontWeight.SemiBold,
+        letterSpacing = 1.4.sp
+    )
+}
+
+// ── Course selector row ───────────────────────────────────────────────────────
+/**
+ * Displays the selected course in a pill-shaped row with a book icon.
+ * Tapping cycles to a dropdown-style picker showing all available courses.
+ */
+@Composable
+private fun CourseSelector(
+    courses: List<Course>,
+    selectedCourse: Course,
+    onSelect: (Course) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .background(SurfaceVar)
+                .clickable { expanded = true }
+                .padding(horizontal = 14.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.MenuBook, null, tint = Primary, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(12.dp))
+            Text(
+                "${selectedCourse.title} (${selectedCourse.courseCode})",
+                color      = OnBackground,
+                fontWeight = FontWeight.Medium,
+                fontSize   = 14.sp,
+                modifier   = Modifier.weight(1f)
+            )
+            Icon(Icons.Default.KeyboardArrowDown, null, tint = OnSurface, modifier = Modifier.size(18.dp))
+        }
+        DropdownMenu(
+            expanded         = expanded,
+            onDismissRequest = { expanded = false },
+            modifier         = Modifier
+                .fillMaxWidth(0.9f)
+                .clip(RoundedCornerShape(12.dp))
+                .background(CardBg)
+        ) {
+            courses.forEach { course ->
+                val isSelected = course.courseId == selectedCourse.courseId
+                DropdownMenuItem(
+                    text = {
+                        Column {
+                            Text(
+                                course.title,
+                                color      = if (isSelected) Primary else OnBackground,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                fontSize   = 13.sp
                             )
-                        )
-                    }
-                }
-
-                // Day picker
-                Text("Day", color = OnSurface, fontSize = 12.sp)
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(DayEnum.values().toList()) { day ->
-                        val sel = day == selectedDay
-                        FilterChip(
-                            selected = sel,
-                            onClick  = { selectedDay = day; conflictMsg = null },
-                            label    = { Text(day.name.take(3), fontSize = 11.sp) },
-                            colors   = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = Primary,
-                                selectedLabelColor     = OnPrimary,
-                                containerColor         = SurfaceVar,
-                                labelColor             = OnSurface
+                            Text(
+                                "${course.courseCode} • ${course.semester}",
+                                color    = OnSurface,
+                                fontSize = 11.sp
                             )
-                        )
-                    }
-                }
+                        }
+                    },
+                    trailingIcon = {
+                        if (isSelected) Icon(Icons.Default.Check, null, tint = Primary, modifier = Modifier.size(16.dp))
+                    },
+                    onClick  = { onSelect(course); expanded = false },
+                    modifier = Modifier.background(CardBg)
+                )
+            }
+        }
+    }
+}
 
-                // Time fields
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(
-                        value         = startTime,
-                        onValueChange = { startTime = it; conflictMsg = null },
-                        label         = { Text("Start (HH:mm)") },
-                        modifier      = Modifier.weight(1f),
-                        singleLine    = true,
-                        colors        = imsFieldColors()
+// ── Date selector ─────────────────────────────────────────────────────────────
+/**
+ * Shows the selected date with a calendar icon.
+ * In a production build this would open a DatePickerDialog;
+ * here it cycles through the next 7 days as a stub.
+ */
+@Composable
+private fun DateSelector(label: String, onSelect: (String) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    val options  = nextSevenDayLabels()
+    Box {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .background(SurfaceVar)
+                .clickable { expanded = true }
+                .padding(horizontal = 12.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.CalendarMonth, null, tint = Primary, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(label, color = OnBackground, fontSize = 13.sp, modifier = Modifier.weight(1f))
+        }
+        DropdownMenu(
+            expanded         = expanded,
+            onDismissRequest = { expanded = false },
+            modifier         = Modifier
+                .clip(RoundedCornerShape(10.dp))
+                .background(CardBg)
+        ) {
+            options.forEach { day ->
+                DropdownMenuItem(
+                    text    = { Text(day, color = OnBackground, fontSize = 13.sp) },
+                    onClick = { onSelect(day); expanded = false },
+                    modifier = Modifier.background(CardBg)
+                )
+            }
+        }
+    }
+}
+
+// ── Time slot selector ────────────────────────────────────────────────────────
+/**
+ * Displays start–end time in a single pill.
+ * Tapping either end opens a small time-picker dropdown (30-min increments).
+ */
+@Composable
+private fun TimeSlotSelector(
+    start: String,
+    end: String,
+    onStartChange: (String) -> Unit,
+    onEndChange: (String) -> Unit
+) {
+    var startExpanded by remember { mutableStateOf(false) }
+    var endExpanded   by remember { mutableStateOf(false) }
+    val timeOptions   = generateTimeOptions()
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(SurfaceVar)
+            .padding(horizontal = 12.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(Icons.Default.AccessTime, null, tint = Primary, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+
+        // Start time
+        Box {
+            Text(
+                start,
+                color    = OnBackground,
+                fontSize = 13.sp,
+                modifier = Modifier.clickable { startExpanded = true }
+            )
+            DropdownMenu(
+                expanded         = startExpanded,
+                onDismissRequest = { startExpanded = false },
+                modifier         = Modifier
+                    .heightIn(max = 200.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(CardBg)
+            ) {
+                timeOptions.forEach { t ->
+                    DropdownMenuItem(
+                        text    = { Text(t, color = if (t == start) Primary else OnBackground, fontSize = 12.sp) },
+                        onClick = { onStartChange(t); startExpanded = false },
+                        modifier = Modifier.background(CardBg)
                     )
-                    OutlinedTextField(
-                        value         = endTime,
-                        onValueChange = { endTime = it; conflictMsg = null },
-                        label         = { Text("End (HH:mm)") },
-                        modifier      = Modifier.weight(1f),
-                        singleLine    = true,
-                        colors        = imsFieldColors()
+                }
+            }
+        }
+
+        Text(" – ", color = OnSurface, fontSize = 13.sp)
+
+        // End time
+        Box {
+            Text(
+                end,
+                color    = OnBackground,
+                fontSize = 13.sp,
+                modifier = Modifier.clickable { endExpanded = true }
+            )
+            DropdownMenu(
+                expanded         = endExpanded,
+                onDismissRequest = { endExpanded = false },
+                modifier         = Modifier
+                    .heightIn(max = 200.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(CardBg)
+            ) {
+                timeOptions.filter { it > start }.forEach { t ->
+                    DropdownMenuItem(
+                        text    = { Text(t, color = if (t == end) Primary else OnBackground, fontSize = 12.sp) },
+                        onClick = { onEndChange(t); endExpanded = false },
+                        modifier = Modifier.background(CardBg)
                     )
-                }
-
-                // Inline conflict message
-                if (conflictMsg != null) {
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(ConflictBg)
-                            .padding(10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.Warning, null, tint = ConflictAmber, modifier = Modifier.size(15.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text(conflictMsg!!, color = OnBackground, fontSize = 12.sp)
-                    }
-                }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(
-                        onClick  = onDismiss,
-                        modifier = Modifier.weight(1f),
-                        colors   = ButtonDefaults.outlinedButtonColors(contentColor = OnSurface)
-                    ) { Text("Cancel") }
-
-                    Button(
-                        onClick = {
-                            // Real-time conflict check against existing slots
-                            val existingSlots = StubRepository.timetableSlots.filter {
-                                it.day == selectedDay && it.slotId != existingSlot?.slotId
-                            }
-                            val hasConflict = existingSlots.any { other ->
-                                timesOverlap(startTime, endTime, other.start, other.end)
-                            }
-                            if (hasConflict) {
-                                conflictMsg = "Time overlaps with an existing slot. Choose another time."
-                            } else {
-                                val newSlot = TimetableSlot(
-                                    slotId   = existingSlot?.slotId ?: "new_${System.currentTimeMillis()}",
-                                    course   = selectedCourse,
-                                    day      = selectedDay,
-                                    start    = startTime,
-                                    end      = endTime,
-                                    room     = existingSlot?.room
-                                        ?: Room("rm1", "LH-101", 120, RoomType.Room100C, "Lecture Block"),
-                                    semester = currentSem
-                                )
-                                onSave(newSlot)
-                            }
-                        },
-                        modifier = Modifier.weight(1f),
-                        colors   = ButtonDefaults.buttonColors(containerColor = Primary)
-                    ) {
-                        Text(
-                            if (existingSlot == null) "Save Slot" else "Update Slot",
-                            color = OnPrimary
-                        )
-                    }
                 }
             }
         }
     }
 }
 
+// ── Venue selector ────────────────────────────────────────────────────────────
+/**
+ * Collapsible room list.  Each room shows name, capacity, and an "IN USE" badge
+ * when the room is occupied during the chosen time window.
+ * A teal checkmark indicates the currently selected room.
+ */
 @Composable
-private fun imsFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedBorderColor   = Primary,
-    unfocusedBorderColor = Divider,
-    focusedLabelColor    = Primary,
-    cursorColor          = Primary,
-    focusedTextColor     = OnBackground,
-    unfocusedTextColor   = OnBackground
+private fun VenueSelector(
+    rooms       : List<Room>,
+    selectedRoom: Room?,
+    expanded    : Boolean,
+    onToggle    : () -> Unit,
+    onSelect    : (Room) -> Unit,
+    busyRoomIds : Set<String>
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(SurfaceVar)
+    ) {
+        // Header row (always visible)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onToggle)
+                .padding(horizontal = 14.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.MeetingRoom, null, tint = Primary, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(12.dp))
+            Text(
+                selectedRoom?.name ?: "Select Room",
+                color      = if (selectedRoom != null) OnBackground else OnSurface,
+                fontWeight = FontWeight.Medium,
+                fontSize   = 14.sp,
+                modifier   = Modifier.weight(1f)
+            )
+            Icon(
+                if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                null,
+                tint     = OnSurface,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+
+        // Expandable room list
+        if (expanded) {
+            HorizontalDivider(color = Divider.copy(alpha = 0.5f))
+            rooms.forEach { room ->
+                val isBusy     = room.roomId in busyRoomIds
+                val isSelected = room.roomId == selectedRoom?.roomId
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = !isBusy) { onSelect(room) }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            room.name,
+                            color      = if (isBusy) OnSurface.copy(0.45f) else OnBackground,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize   = 14.sp
+                        )
+                        Text(
+                            "CAPACITY: ${room.capacity} STUDENTS",
+                            color    = OnSurface.copy(if (isBusy) 0.3f else 0.6f),
+                            fontSize = 10.sp,
+                            letterSpacing = 0.6.sp
+                        )
+                    }
+                    when {
+                        isSelected -> Icon(Icons.Default.CheckCircle, null, tint = Primary, modifier = Modifier.size(22.dp))
+                        isBusy     -> Text("IN USE", color = Color(0xFFEF5350), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+                if (room != rooms.last()) HorizontalDivider(color = Divider.copy(alpha = 0.3f), modifier = Modifier.padding(horizontal = 12.dp))
+            }
+        }
+    }
+}
+
+// ── Conflict status banner ────────────────────────────────────────────────────
+/**
+ * Shows either a green "No Conflict Detected" or a red/amber conflict warning
+ * depending on the result of [detectSlotConflict].
+ */
+@Composable
+private fun ConflictStatusBanner(info: ConflictInfo) {
+    val bgColor   = if (info.isAvailable) Color(0xFF1B3A2A) else ConflictBg
+    val iconColor = if (info.isAvailable) Primary else ConflictAmber
+    val icon      = if (info.isAvailable) Icons.Default.CheckCircle else Icons.Default.Warning
+    val title     = if (info.isAvailable) "No Conflict Detected" else "${info.conflictCount} Conflict${if (info.conflictCount != 1) "s" else ""} Detected"
+    val subtitle  = if (info.isAvailable)
+        "The selected venue and time slot are available for this curriculum node."
+    else
+        info.details.take(2).joinToString("\n")
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(bgColor)
+            .padding(16.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Box(
+            modifier         = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(iconColor.copy(alpha = 0.15f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, null, tint = iconColor, modifier = Modifier.size(22.dp))
+        }
+        Spacer(Modifier.width(12.dp))
+        Column {
+            Text(title,    color = OnBackground, fontWeight = FontWeight.Bold,  fontSize = 14.sp)
+            Spacer(Modifier.height(4.dp))
+            Text(subtitle, color = OnBackground.copy(0.75f), fontSize = 12.sp, lineHeight = 17.sp)
+        }
+    }
+}
+
+// ── Data classes & pure helper functions (no hardcoded stubs) ─────────────────
+
+/** Result of a slot-conflict check. */
+data class ConflictInfo(
+    val isAvailable  : Boolean,
+    val conflictCount: Int,
+    val details      : List<String>
 )
+
+/**
+ * Checks whether [newStart]–[newEnd] on [newRoom] overlaps any slot in [existingSlots].
+ * Room conflicts and time-only conflicts are both reported.
+ */
+private fun detectSlotConflict(
+    newStart     : String,
+    newEnd       : String,
+    newRoom      : Room?,
+    existingSlots: List<TimetableSlot>
+): ConflictInfo {
+    if (newRoom == null) return ConflictInfo(isAvailable = false, conflictCount = 0,
+        details = listOf("Please select a room."))
+    val conflicts = existingSlots.filter { slot ->
+        slot.room.roomId == newRoom.roomId &&
+                timesOverlap(newStart, newEnd, slot.start, slot.end)
+    }.map { slot ->
+        "${slot.room.name} occupied by ${slot.course.courseCode} (${slot.start}–${slot.end})"
+    }
+    return ConflictInfo(
+        isAvailable   = conflicts.isEmpty(),
+        conflictCount = conflicts.size,
+        details       = conflicts
+    )
+}
+
+/**
+ * Returns the set of room IDs that are in use during [newStart]–[newEnd],
+ * excluding the slot being edited ([editingSlotId]).
+ */
+private fun getBusyRoomIds(
+    newStart     : String,
+    newEnd       : String,
+    existingSlots: List<TimetableSlot>,
+    editingSlotId: String?
+): Set<String> = existingSlots
+    .filter { it.slotId != editingSlotId && timesOverlap(newStart, newEnd, it.start, it.end) }
+    .map { it.room.roomId }
+    .toSet()
+
+/** Returns today's date as a display label (e.g. "Oct 24, 2023"). */
+private fun todayLabel(): String {
+    val cal = java.util.Calendar.getInstance()
+    return "%s %d, %d".format(
+        listOf("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")[cal.get(java.util.Calendar.MONTH)],
+        cal.get(java.util.Calendar.DAY_OF_MONTH),
+        cal.get(java.util.Calendar.YEAR)
+    )
+}
+
+/** Returns display labels for the next 7 calendar days. */
+private fun nextSevenDayLabels(): List<String> {
+    val months = listOf("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
+    val cal    = java.util.Calendar.getInstance()
+    return (0..6).map {
+        val c = cal.clone() as java.util.Calendar
+        c.add(java.util.Calendar.DAY_OF_YEAR, it)
+        "%s %d, %d".format(months[c.get(java.util.Calendar.MONTH)],
+            c.get(java.util.Calendar.DAY_OF_MONTH), c.get(java.util.Calendar.YEAR))
+    }
+}
+
+/** Returns a display label for an existing slot's date (uses today as stub). */
+private fun formatSlotDate(slot: TimetableSlot): String = todayLabel()
+
+/**
+ * Parses a day-of-week from a date label by checking today vs the next 6 days.
+ * Falls back to MONDAY if the label can't be matched.
+ */
+private fun parseDayFromDate(label: String): DayEnum {
+    val days   = nextSevenDayLabels()
+    val idx    = days.indexOf(label)
+    val cal    = java.util.Calendar.getInstance()
+    if (idx >= 0) cal.add(java.util.Calendar.DAY_OF_YEAR, idx)
+    return when (cal.get(java.util.Calendar.DAY_OF_WEEK)) {
+        java.util.Calendar.MONDAY    -> DayEnum.MONDAY
+        java.util.Calendar.TUESDAY   -> DayEnum.TUESDAY
+        java.util.Calendar.WEDNESDAY -> DayEnum.WEDNESDAY
+        java.util.Calendar.THURSDAY  -> DayEnum.THURSDAY
+        java.util.Calendar.FRIDAY    -> DayEnum.FRIDAY
+        java.util.Calendar.SATURDAY  -> DayEnum.SATURDAY
+        else                         -> DayEnum.SUNDAY
+    }
+}
+
+/** Generates time options in 30-minute increments from 07:00 to 21:00. */
+private fun generateTimeOptions(): List<String> {
+    val options = mutableListOf<String>()
+    for (h in 7..21) {
+        for (m in listOf(0, 30)) {
+            options.add("%02d:%02d".format(h, m))
+        }
+    }
+    return options
+}

@@ -68,6 +68,9 @@ class IMSViewModel : ViewModel() {
         // stub – in production, persist to DB
     }
 
+    /** Returns all rooms available for booking, derived from the repository. */
+    fun getAllRooms(): List<Room> = StubRepository.allRooms
+
     // ── Attendance ────────────────────────────────────────────────────────────
     var selectedCourseForAttendance by mutableStateOf<Course?>(null)
 

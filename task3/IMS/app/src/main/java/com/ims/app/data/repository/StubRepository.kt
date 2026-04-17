@@ -109,9 +109,14 @@ object StubRepository {
 
     // ── Rooms ────────────────────────────────────────────────────────────────
 
-    private val room101 = Room("rm1","LH-101",120, RoomType.Room100C,"Lecture Block")
-    private val room201 = Room("rm2","LH-201",60, RoomType.Room100C,"Lecture Block")
-    private val lab1 = Room("rm3","CS-Lab-1",40, RoomType.ComputerLab,"Lab Block")
+    val room101 = Room("rm1","LH-101",120, RoomType.Room100C,"Lecture Block")
+    val room201 = Room("rm2","LH-201",60, RoomType.Room100C,"Lecture Block")
+    val lab1    = Room("rm3","CS-Lab-1",40, RoomType.ComputerLab,"Lab Block")
+    val lab2    = Room("rm4","CS-Lab-2",40, RoomType.ComputerLab,"Lab Block")
+    val sciLab  = Room("rm5","Sci-Lab-1",30, RoomType.ScienceLab,"Science Block")
+
+    /** All rooms available for booking — used by the timetable slot form. */
+    val allRooms: List<Room> get() = listOf(room101, room201, lab1, lab2, sciLab)
 
     // ── Timetable Slots ──────────────────────────────────────────────────────
 
