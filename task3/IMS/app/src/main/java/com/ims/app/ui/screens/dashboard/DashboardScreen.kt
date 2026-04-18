@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -70,11 +71,17 @@ fun DashboardScreen(
     val isFaculty = viewModel.isFaculty()
     val isStudent = !isAdmin && !isFaculty
 
-    var showMenu by remember { mutableStateOf(false) }
+    var showMenu             by remember { mutableStateOf(false) }
+    var showLanguageDialog   by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
-            DashboardTopBar(onMenuClick = { showMenu = true }, onLogout = onLogout)
+            DashboardTopBar(
+                onMenuClick  = { showMenu = true },
+                onLogout     = onLogout,
+                showGlobe    = isStudent,
+                onGlobeClick = { showLanguageDialog = true }
+            )
         },
         bottomBar = {
             if (isStudent) {
@@ -182,18 +189,33 @@ fun DashboardScreen(
             )
         }
     }
+
+    // Language / preferences dialog (student only)
+    if (showLanguageDialog) {
+        LanguagePreferencesDialog(onDismiss = { showLanguageDialog = false })
+    }
 }
 
 // ── Top App Bar ───────────────────────────────────────────────────────────────
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DashboardTopBar(onMenuClick: () -> Unit, onLogout: () -> Unit) {
+private fun DashboardTopBar(
+    onMenuClick:  () -> Unit,
+    onLogout:     () -> Unit,
+    showGlobe:    Boolean = false,
+    onGlobeClick: () -> Unit = {}
+) {
     TopAppBar(
         title = { Text("Dashboard", color = OnBackground, fontWeight = FontWeight.Bold, fontSize = 20.sp) },
         navigationIcon = {
             IconButton(onClick = onMenuClick) { Icon(Icons.Default.Menu, "Menu", tint = OnBackground) }
         },
         actions = {
+            if (showGlobe) {
+                IconButton(onClick = onGlobeClick) {
+                    Icon(Icons.Default.Language, "Language Preferences", tint = Primary)
+                }
+            }
             IconButton(onClick = onLogout) { Icon(Icons.Default.ExitToApp, "Logout", tint = Primary) }
         },
         colors = TopAppBarDefaults.topAppBarColors(containerColor = Background)
@@ -485,6 +507,212 @@ private fun AdminStatCards(students: String, faculty: String, pendingApprovals: 
                     Text(stat.value, color = OnBackground, fontWeight = FontWeight.Bold, fontSize = 28.sp)
                     Spacer(Modifier.height(4.dp))
                     Text(stat.sub, color = stat.subColor, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                }
+            }
+        }
+    }
+}
+
+// ── Language Preferences Dialog ───────────────────────────────────────────────
+private data class LanguageOption(val code: String, val label: String, val region: String)
+
+@Composable
+fun LanguagePreferencesDialog(onDismiss: () -> Unit) {
+    val languages = listOf(
+        LanguageOption("en", "English",    "Global"),
+        LanguageOption("hi", "Hindi",      "India"),
+        LanguageOption("mr", "Marathi",    "Maharashtra"),
+        LanguageOption("gu", "Gujarati",   "Gujarat"),
+        LanguageOption("ta", "Tamil",      "Tamil Nadu"),
+        LanguageOption("te", "Telugu",     "Andhra Pradesh"),
+    )
+    var selected by remember { mutableStateOf("en") }
+
+    val timeZones = listOf("Asia/Kolkata (IST)", "UTC", "America/New_York (EST)")
+    var selectedTz by remember { mutableStateOf(timeZones[0]) }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties       = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.55f))
+                .clickable(onClick = onDismiss)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(0.88f)
+                    .align(Alignment.CenterStart)
+                    .background(Background)
+                    .clickable(enabled = false) {}
+                    .padding(horizontal = 20.dp, vertical = 28.dp)
+            ) {
+                // Header — mirrors MenuOverlayScaffold style
+                Text(
+                    "PREFERENCES",
+                    color         = SubtextColor,
+                    fontSize      = 12.sp,
+                    fontWeight    = FontWeight.Medium,
+                    letterSpacing = 0.5.sp
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.Language,
+                        null,
+                        tint     = Primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        "Language & Region",
+                        color      = OnBackground,
+                        fontSize   = 22.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Spacer(Modifier.height(24.dp))
+
+                // Language section
+                Text(
+                    "DISPLAY LANGUAGE",
+                    color         = SubtextColor,
+                    fontSize      = 10.sp,
+                    fontWeight    = FontWeight.SemiBold,
+                    letterSpacing = 1.2.sp
+                )
+                Spacer(Modifier.height(10.dp))
+
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier            = Modifier.weight(1f)
+                ) {
+                    items(languages.size) { idx ->
+                        val lang = languages[idx]
+                        val isSelected = selected == lang.code
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isSelected) MenuItemActiveBg else MenuItemSoonBg)
+                                .clickable { selected = lang.code }
+                                .padding(horizontal = 16.dp, vertical = 14.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier         = Modifier
+                                        .size(38.dp)
+                                        .clip(RoundedCornerShape(9.dp))
+                                        .background(
+                                            if (isSelected) OnBanner.copy(alpha = 0.18f)
+                                            else OnBackground.copy(alpha = 0.07f)
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        lang.code.uppercase(),
+                                        color      = if (isSelected) OnBanner else SubtextColor,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize   = 12.sp
+                                    )
+                                }
+                                Spacer(Modifier.width(14.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        lang.label,
+                                        color      = if (isSelected) OnBanner else OnBackground.copy(alpha = 0.6f),
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize   = 15.sp
+                                    )
+                                    Text(
+                                        lang.region,
+                                        color    = if (isSelected) OnBanner.copy(alpha = 0.75f) else SubtextColor,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                                if (isSelected) {
+                                    Icon(
+                                        Icons.Default.CheckCircle,
+                                        null,
+                                        tint     = OnBanner,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Time zone section
+                    item {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "TIME ZONE",
+                            color         = SubtextColor,
+                            fontSize      = 10.sp,
+                            fontWeight    = FontWeight.SemiBold,
+                            letterSpacing = 1.2.sp
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        timeZones.forEach { tz ->
+                            val isTzSelected = selectedTz == tz
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(if (isTzSelected) MenuItemActiveBg else MenuItemSoonBg)
+                                    .clickable { selectedTz = tz }
+                                    .padding(horizontal = 16.dp, vertical = 14.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Default.Schedule,
+                                        null,
+                                        tint     = if (isTzSelected) OnBanner else SubtextColor,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(Modifier.width(12.dp))
+                                    Text(
+                                        tz,
+                                        color      = if (isTzSelected) OnBanner else OnBackground.copy(alpha = 0.6f),
+                                        fontWeight = FontWeight.Medium,
+                                        fontSize   = 14.sp,
+                                        modifier   = Modifier.weight(1f)
+                                    )
+                                    if (isTzSelected) {
+                                        Icon(
+                                            Icons.Default.CheckCircle,
+                                            null,
+                                            tint     = OnBanner,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+                            }
+                            Spacer(Modifier.height(8.dp))
+                        }
+                    }
+                }
+
+                // Save button
+                Spacer(Modifier.height(16.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(MenuItemActiveBg)
+                        .clickable(onClick = onDismiss)
+                        .padding(vertical = 16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "Save Preferences",
+                        color      = OnBanner,
+                        fontWeight = FontWeight.Bold,
+                        fontSize   = 15.sp
+                    )
                 }
             }
         }
