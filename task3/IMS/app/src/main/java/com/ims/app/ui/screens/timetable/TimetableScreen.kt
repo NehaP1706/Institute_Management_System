@@ -574,11 +574,11 @@ private fun TimetableBottomNav(
                         imageVector = Icons.Default.Home,
                         contentDescription = "Home",
                         modifier = Modifier.size(22.dp),
-                        tint = if (currentRoute == "home") TealPrimary else TextMuted
+                        tint = if (currentRoute == "dashboard") TealPrimary else TextMuted
                     )
                 },
-                isSelected = currentRoute == "home",
-                onClick = { onNavigate("home") }
+                isSelected = currentRoute == "dashboard",
+                onClick = { onNavigate("dashboard") }
             )
 
             // ATTENDANCE

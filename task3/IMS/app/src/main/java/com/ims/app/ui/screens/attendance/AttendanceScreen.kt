@@ -209,7 +209,7 @@ fun AttendanceScreen(
         topBar = {
             TopAppBar(
                 navigationIcon = {
-                    IconButton(onClick = { onNavigate("dashboard") }) {
+                    IconButton(onClick = { onNavigate("back") }) {
                         Icon(Icons.Default.ArrowBack, "Back", tint = OnBackground)
                     }
                 },

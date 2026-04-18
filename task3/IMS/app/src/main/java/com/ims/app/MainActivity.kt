@@ -42,10 +42,21 @@ fun IMSApp(viewModel: IMSViewModel) {
 
     // Central navigate helper — also used by bottom nav
     val navigate: (String) -> Unit = { route ->
-        navController.navigate(route) {
-            // Avoid building up a huge back stack for bottom nav tabs
-            launchSingleTop = true
-            restoreState    = true
+        if (route == "back") {
+            // Safe pop: if the back stack has no entry to return to, fall back to Dashboard
+            val popped = navController.popBackStack()
+            if (!popped) {
+                navController.navigate(Screen.Dashboard.route) {
+                    launchSingleTop = true
+                    restoreState    = true
+                }
+            }
+        } else {
+            navController.navigate(route) {
+                // Avoid building up a huge back stack for bottom nav tabs
+                launchSingleTop = true
+                restoreState    = true
+            }
         }
     }
 

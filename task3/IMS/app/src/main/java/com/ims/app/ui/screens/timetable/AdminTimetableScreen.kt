@@ -24,7 +24,6 @@ import androidx.compose.ui.unit.sp
 import com.ims.app.data.model.*
 import com.ims.app.data.repository.StubRepository
 import com.ims.app.ui.IMSViewModel
-import com.ims.app.ui.Screen
 import com.ims.app.ui.components.BottomNavBar
 import com.ims.app.ui.theme.*
 
@@ -109,13 +108,18 @@ fun AdminTimetableScreen(
     var selectedRoom  by remember { mutableStateOf("ROOM") }
     var showConflictDetail by remember { mutableStateOf(false) }
 
+    // ── Course filter (driven by top-bar filter icon) ─────────────────────────
+    var selectedCourseFilter by remember { mutableStateOf<Course?>(null) }
+    var showCourseFilter     by remember { mutableStateOf(false) }
+
     // ── Computed stats (reactive to selectedSem) ──────────────────────────────
     val allSlots  = viewModel.getTimetableForSemester(selectedSem)
     val daySlots  = allSlots.filter { it.day == selectedDay }
 
     // Room filter applied on top
-    val visibleSlots = if (selectedRoom == "ROOM") daySlots
-    else daySlots.filter { it.room.name == selectedRoom }
+    val visibleSlots = daySlots
+        .let { slots -> if (selectedRoom == "ROOM") slots else slots.filter { it.room.name == selectedRoom } }
+        .let { slots -> if (selectedCourseFilter == null) slots else slots.filter { it.course.courseId == selectedCourseFilter!!.courseId } }
 
     val weeklyLoad    = computeWeeklyLoad(allSlots)
     val loadPct       = (weeklyLoad.toFloat() / MAX_WEEKLY_LOAD).coerceIn(0f, 1f)
@@ -174,6 +178,96 @@ fun AdminTimetableScreen(
         }
     }
 
+    // ── Course filter bottom sheet ────────────────────────────────────────────
+    val filterSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    if (showCourseFilter) {
+        ModalBottomSheet(
+            onDismissRequest = { showCourseFilter = false },
+            sheetState       = filterSheetState,
+            containerColor   = Surface,
+            dragHandle = {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp, bottom = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        Modifier
+                            .size(width = 36.dp, height = 4.dp)
+                            .clip(CircleShape)
+                            .background(Divider)
+                    )
+                }
+            }
+        ) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 20.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    "Filter by Course",
+                    color      = OnBackground,
+                    fontWeight = FontWeight.Bold,
+                    fontSize   = 16.sp
+                )
+                HorizontalDivider(color = Divider)
+
+                // "All" option
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (selectedCourseFilter == null) Primary.copy(alpha = 0.15f) else Color.Transparent)
+                        .clickable { selectedCourseFilter = null; showCourseFilter = false }
+                        .padding(horizontal = 14.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("All Courses", color = OnBackground, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                    if (selectedCourseFilter == null)
+                        Icon(Icons.Default.CheckCircle, null, tint = Primary, modifier = Modifier.size(20.dp))
+                }
+
+                // One row per course
+                viewModel.allCourses.forEach { course ->
+                    val isSelected = selectedCourseFilter?.courseId == course.courseId
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (isSelected) Primary.copy(alpha = 0.15f) else Color.Transparent)
+                            .clickable { selectedCourseFilter = course; showCourseFilter = false }
+                            .padding(horizontal = 14.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text(
+                                course.title,
+                                color      = OnBackground,
+                                fontWeight = FontWeight.Medium,
+                                fontSize   = 14.sp
+                            )
+                            Text(
+                                course.courseCode,
+                                color    = Primary,
+                                fontSize = 11.sp
+                            )
+                        }
+                        if (isSelected)
+                            Icon(Icons.Default.CheckCircle, null, tint = Primary, modifier = Modifier.size(20.dp))
+                    }
+                    HorizontalDivider(color = Divider.copy(alpha = 0.3f), modifier = Modifier.padding(horizontal = 4.dp))
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+        }
+    }
+
     // ── Full-screen Add/Edit — overlays the main scaffold ────────────────────
     if (showAddDialog) {
         AddTimetableSlotScreen(
@@ -195,10 +289,10 @@ fun AdminTimetableScreen(
     Scaffold(
         topBar = {
             TimetableTopBar(
-                userName   = viewModel.getCurrentUserName(),
-                userRole   = viewModel.getCurrentUserRole(),
-                onNavigate = onNavigate,
-                onAddClick = { editingSlot = null; showAddDialog = true }
+                onNavigate          = onNavigate,
+                onAddClick          = { editingSlot = null; showAddDialog = true },
+                onFilterClick       = { showCourseFilter = true },
+                courseFilterActive  = selectedCourseFilter != null
             )
         },
         bottomBar = {
@@ -435,43 +529,38 @@ fun AdminTimetableScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TimetableTopBar(
-    userName: String,
-    userRole: String,
-    onNavigate: (String) -> Unit,
-    onAddClick: () -> Unit
+    onNavigate:         (String) -> Unit,
+    onAddClick:         () -> Unit,
+    onFilterClick:      () -> Unit,
+    courseFilterActive: Boolean
 ) {
     TopAppBar(
         title = {
-            Column {
-                Text(
-                    "Timetable Management",
-                    color      = OnBackground,
-                    fontWeight = FontWeight.Bold,
-                    fontSize   = 17.sp
-                )
-                Text(userName, color = Primary, fontSize = 12.sp)
-            }
+            Text(
+                "Timetable Management",
+                color      = OnBackground,
+                fontWeight = FontWeight.Bold,
+                fontSize   = 20.sp
+            )
         },
         navigationIcon = {
-            IconButton(onClick = { onNavigate(Screen.Dashboard.route) }) {
-                Icon(Icons.Default.Menu, "Menu", tint = OnBackground)
+            IconButton(onClick = { onNavigate("back") }) {
+                Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = OnBackground)
             }
         },
         actions = {
-            IconButton(onClick = {}) {
-                Icon(Icons.Default.Notifications, "Notifications", tint = OnBackground)
+            // Filter icon — tinted teal when a course filter is active
+            IconButton(onClick = onFilterClick) {
+                Icon(
+                    imageVector        = Icons.Default.FilterList,
+                    contentDescription = "Filter by Course",
+                    tint               = if (courseFilterActive) Primary else OnBackground
+                )
             }
-            Box(
-                Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Primary)
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-            ) {
-                Text(userRole, color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-            }
-            Spacer(Modifier.width(4.dp))
+
+            // + icon to add a new slot
             IconButton(onClick = onAddClick) {
-                Icon(Icons.Default.Add, "Add Slot", tint = Primary)
+                Icon(Icons.Default.Add, contentDescription = "Add Slot", tint = Primary)
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(containerColor = CardBg)
