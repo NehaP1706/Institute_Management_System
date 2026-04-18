@@ -58,15 +58,22 @@ class IMSViewModel : ViewModel() {
         else allCourses.filter { it.type == selectedCourseFilter }
 
     // ── Timetable ─────────────────────────────────────────────────────────────
-    val timetableSlots = StubRepository.timetableSlots
+
+    // FIX: Use mutableStateListOf so any add/edit triggers recomposition automatically
+    val timetableSlots: MutableList<TimetableSlot> =
+        mutableStateListOf<TimetableSlot>().also { it.addAll(StubRepository.timetableSlots) }
 
     var selectedSemester by mutableStateOf("Sem 5")
 
     fun getTimetableForSemester(sem: String): List<TimetableSlot> =
         timetableSlots.filter { it.semester == sem }
 
+    // FIX: Actually persists the slot to both the reactive state list and the repository
     fun addTimetableSlot(slot: TimetableSlot) {
-        // stub – in production, persist to DB
+        // Replace if editing (same slotId), otherwise append
+        val idx = timetableSlots.indexOfFirst { it.slotId == slot.slotId }
+        if (idx >= 0) timetableSlots[idx] = slot else timetableSlots.add(slot)
+        StubRepository.saveTimetableSlot(slot)
     }
 
     /** Returns all rooms available for booking, derived from the repository. */
@@ -74,18 +81,21 @@ class IMSViewModel : ViewModel() {
 
     // ── Personal timetable slots (student) ────────────────────────────────────
 
+    // FIX: Back personal slots with mutableStateListOf so additions trigger recomposition
+    val personalSlots: MutableList<PersonalTimetableSlot> =
+        mutableStateListOf<PersonalTimetableSlot>().also { it.addAll(StubRepository.getPersonalSlots()) }
+
     /**
      * Adds a student-created personal timetable slot.
-     * Backed by [StubRepository.personalTimetableSlots]; in production this
-     * would persist to a per-user backend collection.
+     * Updates both the reactive [personalSlots] list and the repository.
      */
     fun addPersonalSlot(slot: PersonalTimetableSlot) {
+        personalSlots.add(slot)
         StubRepository.addPersonalSlot(slot)
     }
 
     /** Returns all personal timetable slots for the current student. */
-    fun getPersonalSlots(): List<PersonalTimetableSlot> =
-        StubRepository.getPersonalSlots()
+    fun getUserPersonalSlots(): List<PersonalTimetableSlot> = personalSlots.toList()
 
     // ── Attendance ────────────────────────────────────────────────────────────
     var selectedCourseForAttendance by mutableStateOf<Course?>(null)

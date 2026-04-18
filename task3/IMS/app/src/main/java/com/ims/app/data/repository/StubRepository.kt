@@ -121,7 +121,8 @@ object StubRepository {
 
     // ── Timetable Slots ──────────────────────────────────────────────────────
 
-    val timetableSlots = listOf(
+    // FIX: Changed to MutableList so addTimetableSlot() can persist new entries
+    val timetableSlots: MutableList<TimetableSlot> = mutableListOf(
         TimetableSlot("ts1", courses[0], DayEnum.MONDAY,    "09:00","10:00", room101, "Sem 5"),
         TimetableSlot("ts2", courses[1], DayEnum.MONDAY,    "10:00","11:00", room201, "Sem 5"),
         TimetableSlot("ts3", courses[2], DayEnum.TUESDAY,   "09:00","10:00", room101, "Sem 5"),
@@ -129,6 +130,12 @@ object StubRepository {
         TimetableSlot("ts5", courses[0], DayEnum.THURSDAY,  "14:00","15:00", room101, "Sem 5"),
         TimetableSlot("ts6", courses[4], DayEnum.FRIDAY,    "10:00","11:00", lab1,    "Sem 6"),
     )
+
+    /** Persists a new or edited timetable slot. Replaces existing slot with same ID. */
+    fun saveTimetableSlot(slot: TimetableSlot) {
+        timetableSlots.removeIf { it.slotId == slot.slotId }
+        timetableSlots.add(slot)
+    }
 
     // ── Attendance Records ────────────────────────────────────────────────────
 

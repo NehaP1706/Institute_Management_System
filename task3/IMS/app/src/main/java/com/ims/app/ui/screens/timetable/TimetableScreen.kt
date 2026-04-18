@@ -67,6 +67,10 @@ fun TimetableScreen(
     val slots = viewModel.getTimetableForSemester(viewModel.selectedSemester)
         .filter { it.day == selectedDay }
 
+    // FIX: Read personal slots reactively from the ViewModel's mutableStateListOf
+    // so newly added slots appear immediately without needing a recomposition trigger
+    val personalSlots = viewModel.personalSlots
+
     // Detect conflicts: overlapping time slots on same day
     val hasConflict = slots.zipWithNext().any { (a, b) ->
         a.end > b.start
@@ -153,7 +157,26 @@ fun TimetableScreen(
                     }
                 }
 
-                if (slots.isNotEmpty()) {
+                // FIX: Personal slots section — shown below regular slots
+                if (personalSlots.isNotEmpty()) {
+                    item(key = "personal_header") {
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            text          = "PERSONAL SLOTS",
+                            color         = TextMuted,
+                            fontSize      = 10.sp,
+                            fontWeight    = FontWeight.SemiBold,
+                            letterSpacing = 1.4.sp
+                        )
+                        Spacer(Modifier.height(8.dp))
+                    }
+                    items(personalSlots, key = { it.id }) { pSlot ->
+                        PersonalSlotCard(slot = pSlot)
+                        Spacer(Modifier.height(4.dp))
+                    }
+                }
+
+                if (slots.isNotEmpty() || personalSlots.isNotEmpty()) {
                     item(key = "no_more") {
                         Spacer(Modifier.height(20.dp))
                         NoMoreClassesBlock()
@@ -161,7 +184,7 @@ fun TimetableScreen(
                     }
                 }
 
-                if (slots.isEmpty()) {
+                if (slots.isEmpty() && personalSlots.isEmpty()) {
                     item(key = "empty") {
                         NoMoreClassesBlock(emptyDay = true, dayName = selectedDay.name)
                     }
@@ -392,6 +415,64 @@ fun TimetableSlotCard(
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.5.sp
                 )
+            }
+        }
+    }
+}
+
+// ── Personal slot card ────────────────────────────────────────────────────────
+
+@Composable
+fun PersonalSlotCard(slot: PersonalTimetableSlot) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color(0xFF132233))
+            .padding(horizontal = 16.dp, vertical = 14.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            // Time column
+            Column(
+                horizontalAlignment = Alignment.Start,
+                modifier            = Modifier.width(60.dp)
+            ) {
+                Text(slot.startTime, color = TextSub,  fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(2.dp))
+                Text("·",           color = TextMuted, fontSize = 10.sp)
+                Spacer(Modifier.height(2.dp))
+                Text(slot.endTime,  color = TextMuted, fontSize = 12.sp)
+            }
+            Spacer(Modifier.width(4.dp))
+            // Info
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Personal",
+                    color    = TextMuted,
+                    fontSize = 10.sp
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    slot.title,
+                    color      = TextSub,
+                    fontSize   = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines   = 1,
+                    overflow   = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+                if (!slot.reason.isNullOrBlank()) {
+                    Text(slot.reason, color = TextMuted, fontSize = 11.sp)
+                }
+            }
+            Spacer(Modifier.width(10.dp))
+            // Personal badge
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFF1E3A52))
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text("MY SLOT", color = TealPrimary, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
             }
         }
     }
