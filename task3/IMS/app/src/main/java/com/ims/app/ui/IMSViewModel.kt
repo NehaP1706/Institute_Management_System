@@ -3,6 +3,7 @@ package com.ims.app.ui
 import androidx.compose.runtime.*
 import androidx.lifecycle.ViewModel
 import com.ims.app.data.model.*
+import com.ims.app.data.model.PersonalTimetableSlot
 import com.ims.app.data.repository.StubRepository
 
 class IMSViewModel : ViewModel() {
@@ -70,6 +71,21 @@ class IMSViewModel : ViewModel() {
 
     /** Returns all rooms available for booking, derived from the repository. */
     fun getAllRooms(): List<Room> = StubRepository.allRooms
+
+    // ── Personal timetable slots (student) ────────────────────────────────────
+
+    /**
+     * Adds a student-created personal timetable slot.
+     * Backed by [StubRepository.personalTimetableSlots]; in production this
+     * would persist to a per-user backend collection.
+     */
+    fun addPersonalSlot(slot: PersonalTimetableSlot) {
+        StubRepository.addPersonalSlot(slot)
+    }
+
+    /** Returns all personal timetable slots for the current student. */
+    fun getPersonalSlots(): List<PersonalTimetableSlot> =
+        StubRepository.getPersonalSlots()
 
     // ── Attendance ────────────────────────────────────────────────────────────
     var selectedCourseForAttendance by mutableStateOf<Course?>(null)

@@ -9,10 +9,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.CalendarToday
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,6 +23,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ims.app.data.model.DayEnum
+import com.ims.app.data.model.PersonalTimetableSlot
 import com.ims.app.data.model.TimetableSlot
 import com.ims.app.ui.IMSViewModel
 
@@ -51,8 +49,20 @@ fun TimetableScreen(
     currentRoute: String,
     onNavigate: (String) -> Unit
 ) {
-    // Default to Wednesday to match Figma, but allow selection
-    var selectedDay by remember { mutableStateOf(DayEnum.WEDNESDAY) }
+    var selectedDay    by remember { mutableStateOf(DayEnum.WEDNESDAY) }
+    var showAddScreen  by remember { mutableStateOf(false) }
+
+    // ── Full-screen add-slot overlay ──────────────────────────────────────────
+    if (showAddScreen) {
+        AddPersonalSlotScreen(
+            onBack = { showAddScreen = false },
+            onSave = { slot ->
+                viewModel.addPersonalSlot(slot)
+                showAddScreen = false
+            }
+        )
+        return
+    }
 
     val slots = viewModel.getTimetableForSemester(viewModel.selectedSemester)
         .filter { it.day == selectedDay }
@@ -68,6 +78,16 @@ fun TimetableScreen(
         },
         bottomBar = {
             TimetableBottomNav(currentRoute = currentRoute, onNavigate = onNavigate)
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick        = { showAddScreen = true },
+                containerColor = TealPrimary,
+                contentColor   = Color.Black,
+                shape          = RoundedCornerShape(16.dp)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Add personal slot")
+            }
         },
         containerColor = BgDeep
     ) { padding ->
@@ -551,3 +571,303 @@ private fun BottomNavItem(
         )
     }
 }
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Add Personal Timetable Slot — full screen, Figma style
+// Fields: Title (required), Time (start–end, required), Reason (optional)
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Full-screen form for students to add a personal timetable entry.
+ * Matches the Figma "Add Timetable Slot" layout but simplified to three fields:
+ * Title, Time Slot, and an optional Reason.
+ *
+ * @param onBack  Called when the user presses the back arrow.
+ * @param onSave  Called with the completed [PersonalTimetableSlot] on confirmation.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AddPersonalSlotScreen(
+    onBack: () -> Unit,
+    onSave: (PersonalTimetableSlot) -> Unit
+) {
+    // ── Editable state ────────────────────────────────────────────────────────
+    var title      by remember { mutableStateOf("") }
+    var startTime  by remember { mutableStateOf("09:00") }
+    var endTime    by remember { mutableStateOf("10:00") }
+    var reason     by remember { mutableStateOf("") }
+    var titleError by remember { mutableStateOf(false) }
+
+    // ── Local colours (reuse TimetableScreen tokens) ──────────────────────────
+    val sectionLabelColor = TextMuted
+    val fieldBg           = Color(0xFF132233)
+    val fieldText         = TextWhite
+    val fieldHint         = TextMuted
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        "Add Timetable Slot",
+                        color      = TextWhite,
+                        fontWeight = FontWeight.Bold,
+                        fontSize   = 18.sp
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, "Back", tint = TealPrimary)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = BgDeep)
+            )
+        },
+        bottomBar = {
+            // "Confirm Schedule Slot →" pinned at the bottom — same as admin screen
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(BgDeep)
+                    .padding(horizontal = 20.dp, vertical = 16.dp)
+            ) {
+                Button(
+                    onClick = {
+                        if (title.isBlank()) {
+                            titleError = true
+                        } else {
+                            onSave(
+                                PersonalTimetableSlot(
+                                    id        = "ps_${System.currentTimeMillis()}",
+                                    title     = title.trim(),
+                                    startTime = startTime,
+                                    endTime   = endTime,
+                                    reason    = reason.trim().ifBlank { null }
+                                )
+                            )
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(54.dp),
+                    shape    = RoundedCornerShape(28.dp),
+                    colors   = ButtonDefaults.buttonColors(containerColor = TealPrimary)
+                ) {
+                    Text(
+                        "Confirm Schedule Slot",
+                        color      = Color.Black,
+                        fontWeight = FontWeight.Bold,
+                        fontSize   = 16.sp
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Icon(
+                        Icons.Default.ArrowForward,
+                        contentDescription = null,
+                        tint     = Color.Black,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        },
+        containerColor = BgDeep
+    ) { padding ->
+
+        LazyColumn(
+            modifier            = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            item { Spacer(Modifier.height(4.dp)) }
+
+            // ── TITLE ─────────────────────────────────────────────────────────
+            item {
+                PersonalSlotSectionLabel("TITLE", sectionLabelColor)
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value         = title,
+                    onValueChange = { title = it; titleError = false },
+                    placeholder   = { Text("e.g. Study Group – Algorithms", color = fieldHint) },
+                    leadingIcon   = {
+                        Icon(Icons.Default.Title, null, tint = TealPrimary, modifier = Modifier.size(20.dp))
+                    },
+                    isError       = titleError,
+                    supportingText = if (titleError) {{ Text("Title is required", color = Color(0xFFEF5350)) }} else null,
+                    modifier      = Modifier.fillMaxWidth(),
+                    singleLine    = true,
+                    shape         = RoundedCornerShape(14.dp),
+                    colors        = personalSlotFieldColors(fieldBg, fieldText)
+                )
+            }
+
+            // ── TIME SLOT ─────────────────────────────────────────────────────
+            item {
+                PersonalSlotSectionLabel("TIME SLOT", sectionLabelColor)
+                Spacer(Modifier.height(8.dp))
+                PersonalTimeSlotRow(
+                    start         = startTime,
+                    end           = endTime,
+                    onStartChange = { startTime = it },
+                    onEndChange   = { endTime   = it },
+                    fieldBg       = fieldBg,
+                    fieldText     = fieldText
+                )
+            }
+
+            // ── REASON (optional) ─────────────────────────────────────────────
+            item {
+                PersonalSlotSectionLabel("REASON  (OPTIONAL)", sectionLabelColor)
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value         = reason,
+                    onValueChange = { reason = it },
+                    placeholder   = { Text("e.g. Exam prep, club meeting…", color = fieldHint) },
+                    leadingIcon   = {
+                        Icon(Icons.Default.Notes, null, tint = TealPrimary, modifier = Modifier.size(20.dp))
+                    },
+                    modifier  = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 100.dp),
+                    maxLines  = 4,
+                    shape     = RoundedCornerShape(14.dp),
+                    colors    = personalSlotFieldColors(fieldBg, fieldText)
+                )
+            }
+
+            item { Spacer(Modifier.height(8.dp)) }
+        }
+    }
+}
+
+// ── Small helpers local to the add-slot screen ────────────────────────────────
+
+@Composable
+private fun PersonalSlotSectionLabel(text: String, color: Color) {
+    Text(
+        text          = text,
+        color         = color,
+        fontSize      = 10.sp,
+        fontWeight    = FontWeight.SemiBold,
+        letterSpacing = 1.4.sp
+    )
+}
+
+/**
+ * Side-by-side start / end time pickers.
+ * Each opens a dropdown with 30-minute increments from 07:00 to 21:00.
+ */
+@Composable
+private fun PersonalTimeSlotRow(
+    start: String,
+    end: String,
+    onStartChange: (String) -> Unit,
+    onEndChange: (String) -> Unit,
+    fieldBg: Color,
+    fieldText: Color
+) {
+    val timeOptions = personalTimeOptions()
+    var startExpanded by remember { mutableStateOf(false) }
+    var endExpanded   by remember { mutableStateOf(false) }
+
+    Row(
+        modifier              = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Start time
+        Column(Modifier.weight(1f)) {
+            Text("FROM", color = TextMuted, fontSize = 9.sp, letterSpacing = 1.sp)
+            Spacer(Modifier.height(6.dp))
+            Box {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(fieldBg)
+                        .clickable { startExpanded = true }
+                        .padding(horizontal = 14.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.AccessTime, null, tint = TealPrimary, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(start, color = fieldText, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                    Icon(Icons.Default.KeyboardArrowDown, null, tint = TextMuted, modifier = Modifier.size(16.dp))
+                }
+                DropdownMenu(
+                    expanded         = startExpanded,
+                    onDismissRequest = { startExpanded = false },
+                    modifier         = Modifier
+                        .heightIn(max = 220.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFF0F2137))
+                ) {
+                    timeOptions.forEach { t ->
+                        DropdownMenuItem(
+                            text    = { Text(t, color = if (t == start) TealPrimary else TextWhite, fontSize = 13.sp) },
+                            onClick = { onStartChange(t); startExpanded = false },
+                            modifier = Modifier.background(Color(0xFF0F2137))
+                        )
+                    }
+                }
+            }
+        }
+
+        // End time
+        Column(Modifier.weight(1f)) {
+            Text("TO", color = TextMuted, fontSize = 9.sp, letterSpacing = 1.sp)
+            Spacer(Modifier.height(6.dp))
+            Box {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(fieldBg)
+                        .clickable { endExpanded = true }
+                        .padding(horizontal = 14.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.AccessTime, null, tint = TealPrimary, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(end, color = fieldText, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                    Icon(Icons.Default.KeyboardArrowDown, null, tint = TextMuted, modifier = Modifier.size(16.dp))
+                }
+                DropdownMenu(
+                    expanded         = endExpanded,
+                    onDismissRequest = { endExpanded = false },
+                    modifier         = Modifier
+                        .heightIn(max = 220.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFF0F2137))
+                ) {
+                    timeOptions.filter { it > start }.forEach { t ->
+                        DropdownMenuItem(
+                            text    = { Text(t, color = if (t == end) TealPrimary else TextWhite, fontSize = 13.sp) },
+                            onClick = { onEndChange(t); endExpanded = false },
+                            modifier = Modifier.background(Color(0xFF0F2137))
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Generates time options in 30-minute increments from 07:00 to 21:00. */
+private fun personalTimeOptions(): List<String> {
+    val list = mutableListOf<String>()
+    for (h in 7..21) for (m in listOf(0, 30)) list.add("%02d:%02d".format(h, m))
+    return list
+}
+
+@Composable
+private fun personalSlotFieldColors(bg: Color, text: Color) =
+    OutlinedTextFieldDefaults.colors(
+        focusedBorderColor      = TealPrimary,
+        unfocusedBorderColor    = Color.Transparent,
+        focusedContainerColor   = bg,
+        unfocusedContainerColor = bg,
+        focusedTextColor        = text,
+        unfocusedTextColor      = text,
+        cursorColor             = TealPrimary,
+        focusedLabelColor       = TealPrimary
+    )

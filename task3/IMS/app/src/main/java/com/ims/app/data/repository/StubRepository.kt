@@ -1,6 +1,7 @@
 package com.ims.app.data.repository
 
 import com.ims.app.data.model.*
+import com.ims.app.data.model.PersonalTimetableSlot
 import java.util.Date
 
 /**
@@ -193,4 +194,15 @@ object StubRepository {
         }
         attendanceRecords.add(record)
     }
+
+    // ── Personal timetable slots (student-created) ────────────────────────────
+
+    val personalTimetableSlots: MutableList<PersonalTimetableSlot> = mutableListOf()
+
+    fun addPersonalSlot(slot: PersonalTimetableSlot) {
+        personalTimetableSlots.add(slot)
+    }
+
+    fun getPersonalSlots(): List<PersonalTimetableSlot> =
+        personalTimetableSlots.toList()
 }

@@ -26,25 +26,23 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ims.app.ui.IMSViewModel
+import com.ims.app.ui.Screen
 import com.ims.app.ui.theme.*
 
 /**
- * Combined Login + Sign-Up screen matching the second Figma reference:
- *  - Globe icon top-right
- *  - Logo + title centred
- *  - Login / Sign Up tab switcher (teal pill highlight)
- *  - Dark-teal card wrapping the input fields with uppercase labels
- *  - Quick-login chips retained for dev convenience
- *  - "By continuing…" footer text
+ * Combined Login + Sign-Up screen.
  *
- * The original separate [SignUpScreen] composable is no longer needed;
- * sign-up is handled by the tab inside this single screen.
+ * FIX: [onLoginSuccess] now receives the destination route so the nav host
+ * can send admins/faculty to [Screen.Dashboard] and students to
+ * [Screen.Dashboard] (same composable, but the composable itself now renders
+ * role-appropriate content).  If you later create a dedicated StudentDashboard
+ * screen just change the route returned here.
  */
 @Composable
 fun LoginScreen(
     viewModel: IMSViewModel,
-    onLoginSuccess: () -> Unit,
-    onNavigateToSignUp: () -> Unit   // kept for nav-graph back-compat; unused internally
+    onLoginSuccess: (route: String) -> Unit,   // FIX: carries the destination route
+    onNavigateToSignUp: () -> Unit              // kept for nav-graph back-compat; unused internally
 ) {
     // ── Tab state ────────────────────────────────────────────────────────
     var isLoginTab by remember { mutableStateOf(true) }
@@ -64,9 +62,19 @@ fun LoginScreen(
     var showConfirmPass  by remember { mutableStateOf(false) }
     var signUpError      by remember { mutableStateOf<String?>(null) }
 
-    // Navigate on successful login
+    // FIX: Navigate to the correct destination based on the user's role,
+    // not blindly to Dashboard every time.
     val user = viewModel.currentUser
-    LaunchedEffect(user) { if (user != null) onLoginSuccess() }
+    LaunchedEffect(user) {
+        if (user != null) {
+            // All roles currently land on Dashboard, but the Dashboard
+            // composable now branches its UI by role.  If you add a dedicated
+            // StudentDashboard route in Navigation.kt, swap it in here:
+            //   Screen.StudentDashboard.route for students
+            val destination = Screen.Dashboard.route
+            onLoginSuccess(destination)
+        }
+    }
 
     Box(
         Modifier
@@ -296,7 +304,7 @@ fun LoginScreen(
                             onValueChange = { name = it },
                             leadingIcon = {
                                 Icon(
-                                    Icons.Outlined.Email,   // re-using available icon; swap for Person if imported
+                                    Icons.Outlined.Email,
                                     contentDescription = null,
                                     tint = OnSurface.copy(alpha = 0.6f)
                                 )
@@ -430,7 +438,6 @@ fun LoginScreen(
                                 signUpError = "Passwords do not match"
                             else -> {
                                 if (viewModel.registerUser(name, signUpEmail, signUpPass)) {
-                                    // Switch to login tab after successful registration
                                     isLoginTab = true
                                 } else {
                                     signUpError = "Registration failed. Please try again."
@@ -469,7 +476,6 @@ fun LoginScreen(
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/** Uppercase label rendered above each field inside the teal card. */
 @Composable
 private fun CardFieldLabel(text: String) {
     Text(
@@ -481,7 +487,6 @@ private fun CardFieldLabel(text: String) {
     )
 }
 
-/** TextField colours tuned for the dark-teal card background. */
 @Composable
 private fun cardFieldColors() = OutlinedTextFieldDefaults.colors(
     focusedBorderColor      = Color(0xFF76D6D5),
