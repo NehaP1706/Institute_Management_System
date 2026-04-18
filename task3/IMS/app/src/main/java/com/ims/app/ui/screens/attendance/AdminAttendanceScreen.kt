@@ -216,15 +216,31 @@ fun AdminAttendanceScreen(
     var detailRemark            by remember { mutableStateOf("") }
     var saved                   by remember { mutableStateOf(false) }
 
-    // ── Student list ──────────────────────────────────────────────────────────
-    // Derived from attendanceRecords exactly like the original code; falls back
-    // to sampleStudent so the screen is never empty.
-    val studentList: List<Student> = remember(selectedCourse) {
-        StubRepository.attendanceRecords
+    // ── Monthly view gate ─────────────────────────────────────────────────────
+    // All remember() calls above are unconditional — this early return is safe
+    // because it comes after every state declaration in the function.
+    if (selectedFreq == "MONTHLY") {
+        AdminMonthlyAttendanceScreen(
+            viewModel       = viewModel,
+            currentRoute    = currentRoute,
+            onNavigate      = onNavigate,
+            onSwitchToDaily = { selectedFreq = "DAILY" }
+        )
+        return
+    }
+
+    // ── Student list — filtered by course AND batch ───────────────────────────
+    // The stub places all students in BATCH A; B / C are intentionally empty.
+    val studentList: List<Student> = remember(selectedCourse, selectedBatch) {
+        val allForCourse = StubRepository.attendanceRecords
             .filter { it.course.courseId == selectedCourse.courseId }
             .map { it.student }
             .distinctBy { it.studentId }
             .ifEmpty { listOf(StubRepository.sampleStudent) }
+        when (selectedBatch) {
+            "BATCH A" -> allForCourse
+            else      -> emptyList()
+        }
     }
 
     // ── Derived stats ─────────────────────────────────────────────────────────
@@ -418,7 +434,7 @@ fun AdminAttendanceScreen(
                                         )
                                     },
                                     onClick = {
-                                        selectedFreq    = option
+                                        selectedFreq     = option   // "MONTHLY" triggers gate above
                                         showFreqDropdown = false
                                     }
                                 )
