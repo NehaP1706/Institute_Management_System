@@ -71,8 +71,8 @@ fun DashboardScreen(
     val isFaculty = viewModel.isFaculty()
     val isStudent = !isAdmin && !isFaculty
 
-    var showMenu             by remember { mutableStateOf(false) }
-    var showLanguageDialog   by remember { mutableStateOf(false) }
+    var showMenu           by remember { mutableStateOf(false) }
+    var showLanguageDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -109,25 +109,26 @@ fun DashboardScreen(
         ) {
             item { Spacer(Modifier.height(4.dp)) }
 
-            // Profile banner — all roles
+            // Profile banner — role-specific
             item {
-                ProfileBanner(name = name, role = role, email = email)
+                if (isAdmin) {
+                    AdminProfileBanner(name = name, role = role, email = email)
+                } else {
+                    ProfileBanner(name = name, role = role, email = email)
+                }
             }
 
             // ── Student body ────────────────────────────────────────────────
             if (isStudent) {
                 item {
-                    // Compute attendance across all courses — no hardcoded values
                     val perCoursePercents = viewModel.allCourses
                         .map { viewModel.getAttendancePercent(it.courseId) }
                     val overallAttendance = if (perCoursePercents.isEmpty()) 0f
                     else perCoursePercents.average().toFloat()
 
-                    // Alerts = courses below the 75% threshold
                     val alertCount = viewModel.allCourses
                         .count { viewModel.getAttendancePercent(it.courseId) < 75f }
 
-                    // Credits = sum of enrolled course credits
                     val totalCredits = viewModel.allCourses.sumOf { it.credits }
 
                     StudentStatRow(
@@ -222,7 +223,126 @@ private fun DashboardTopBar(
     )
 }
 
-// ── Profile Banner ────────────────────────────────────────────────────────────
+// ── Admin Profile Banner (centered layout) ────────────────────────────────────
+@Composable
+private fun AdminProfileBanner(name: String, role: String, email: String) {
+    val lastActive = remember { SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date()) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(Brush.verticalGradient(listOf(BannerGradientStart, BannerGradientEnd)))
+            .padding(horizontal = 20.dp, vertical = 20.dp)
+    ) {
+        Column(
+            modifier            = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Centered avatar with online dot
+            Box(contentAlignment = Alignment.BottomEnd) {
+                Box(
+                    modifier         = Modifier
+                        .size(64.dp)
+                        .clip(CircleShape)
+                        .background(BannerGradientEnd.copy(alpha = 0.55f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.Person,
+                        null,
+                        tint     = OnBanner.copy(alpha = 0.9f),
+                        modifier = Modifier.size(40.dp)
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .size(14.dp)
+                        .clip(CircleShape)
+                        .background(BannerGradientEnd)
+                        .padding(2.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(CircleShape)
+                            .background(GreenAccent)
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            Text(
+                name,
+                color      = OnBanner,
+                fontWeight = FontWeight.Bold,
+                fontSize   = 20.sp
+            )
+
+            Spacer(Modifier.height(6.dp))
+
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(OnBanner.copy(alpha = 0.22f))
+                    .padding(horizontal = 12.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    role.uppercase(),
+                    color         = OnBanner,
+                    fontSize      = 9.sp,
+                    fontWeight    = FontWeight.Bold,
+                    letterSpacing = 1.0.sp
+                )
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            Text(
+                email,
+                color    = OnBanner.copy(alpha = 0.85f),
+                fontSize = 12.sp
+            )
+
+            Spacer(Modifier.height(6.dp))
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.Schedule,
+                    null,
+                    tint     = OnBanner.copy(alpha = 0.65f),
+                    modifier = Modifier.size(11.dp)
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    "Last active: Today, $lastActive",
+                    color    = OnBanner.copy(alpha = 0.65f),
+                    fontSize = 11.sp
+                )
+            }
+
+            Spacer(Modifier.height(4.dp))
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.LocationOn,
+                    null,
+                    tint     = OnBanner.copy(alpha = 0.65f),
+                    modifier = Modifier.size(11.dp)
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    "IIIT Hyderabad",
+                    color    = OnBanner.copy(alpha = 0.65f),
+                    fontSize = 11.sp
+                )
+            }
+        }
+    }
+}
+
+// ── Profile Banner (Student / Faculty — unchanged) ────────────────────────────
 @Composable
 private fun ProfileBanner(name: String, role: String, email: String) {
     val lastActive = remember { SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date()) }
@@ -484,15 +604,21 @@ private fun FacultyActionCard(label: String, icon: ImageVector, modifier: Modifi
     }
 }
 
-// ── Admin Stat Cards ──────────────────────────────────────────────────────────
-private data class AdminStat(val label: String, val value: String, val sub: String, val subColor: Color)
+// ── Admin Stat Cards (centered, compact) ──────────────────────────────────────
+private data class AdminStat(
+    val label:    String,
+    val value:    String,
+    val sub:      String,
+    val subColor: Color,
+    val subIcon:  ImageVector
+)
 
 @Composable
 private fun AdminStatCards(students: String, faculty: String, pendingApprovals: String) {
     val items = listOf(
-        AdminStat("TOTAL STUDENTS",    students,         "↗ +4.2%",        GreenAccent),
-        AdminStat("ACTIVE FACULTY",    faculty,          "✓ Stable",        GreenAccent),
-        AdminStat("PENDING APPROVALS", pendingApprovals, "! High Priority", RedAccent),
+        AdminStat("TOTAL STUDENTS",    students,         "+4.2%",         GreenAccent, Icons.Default.TrendingUp),
+        AdminStat("ACTIVE FACULTY",    faculty,          "Stable",        GreenAccent, Icons.Default.CheckCircle),
+        AdminStat("PENDING APPROVALS", pendingApprovals, "High Priority", RedAccent,   Icons.Default.Warning),
     )
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         items.forEach { stat ->
@@ -501,12 +627,45 @@ private fun AdminStatCards(students: String, faculty: String, pendingApprovals: 
                 shape    = RoundedCornerShape(14.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
-                    Text(stat.label, color = SubtextColor, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp)
+                Column(
+                    modifier            = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 14.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        stat.label,
+                        color         = SubtextColor,
+                        fontSize      = 10.sp,
+                        fontWeight    = FontWeight.SemiBold,
+                        letterSpacing = 1.2.sp
+                    )
                     Spacer(Modifier.height(6.dp))
-                    Text(stat.value, color = OnBackground, fontWeight = FontWeight.Bold, fontSize = 28.sp)
+                    Text(
+                        stat.value,
+                        color      = OnBackground,
+                        fontWeight = FontWeight.Bold,
+                        fontSize   = 28.sp
+                    )
                     Spacer(Modifier.height(4.dp))
-                    Text(stat.sub, color = stat.subColor, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    Row(
+                        verticalAlignment     = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            stat.subIcon,
+                            null,
+                            tint     = stat.subColor,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            stat.sub,
+                            color      = stat.subColor,
+                            fontSize   = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
             }
         }
@@ -550,7 +709,6 @@ fun LanguagePreferencesDialog(onDismiss: () -> Unit) {
                     .clickable(enabled = false) {}
                     .padding(horizontal = 20.dp, vertical = 28.dp)
             ) {
-                // Header — mirrors MenuOverlayScaffold style
                 Text(
                     "PREFERENCES",
                     color         = SubtextColor,
@@ -576,7 +734,6 @@ fun LanguagePreferencesDialog(onDismiss: () -> Unit) {
                 }
                 Spacer(Modifier.height(24.dp))
 
-                // Language section
                 Text(
                     "DISPLAY LANGUAGE",
                     color         = SubtextColor,
@@ -645,7 +802,6 @@ fun LanguagePreferencesDialog(onDismiss: () -> Unit) {
                         }
                     }
 
-                    // Time zone section
                     item {
                         Spacer(Modifier.height(8.dp))
                         Text(
@@ -696,7 +852,6 @@ fun LanguagePreferencesDialog(onDismiss: () -> Unit) {
                     }
                 }
 
-                // Save button
                 Spacer(Modifier.height(16.dp))
                 Box(
                     modifier = Modifier
