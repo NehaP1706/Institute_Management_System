@@ -211,6 +211,16 @@ fun AdminAttendanceScreen(
         }
     }
 
+    // ── Remarks map — persists saved remarks for the session ──────────────────
+    val remarksMap = remember {
+        mutableStateMapOf<String, String>().also { map ->
+            StubRepository.attendanceRecords.forEach { r ->
+                if (r.remarks.isNotBlank())
+                    map[r.student.studentId + "_" + r.course.courseId] = r.remarks
+            }
+        }
+    }
+
     // ── Bottom-panel state ────────────────────────────────────────────────────
     var detailStudent: Student? by remember { mutableStateOf(null) }
     var detailRemark            by remember { mutableStateOf("") }
@@ -297,7 +307,7 @@ fun AdminAttendanceScreen(
                 course       = selectedCourse,
                 date         = selectedDate.time,
                 status       = status,
-                remarks      = detailRemark
+                remarks      = remarksMap[key] ?: ""   // preserve any existing remark
             )
         )
     }
@@ -502,27 +512,28 @@ fun AdminAttendanceScreen(
                             name      = name,
                             id        = student.studentId,
                             status    = status,
+                            hasRemark = remarksMap[key]?.isNotBlank() == true,
                             onApprove = {
                                 markAndPersist(student, AttendanceStatus.PRESENT)
                                 detailStudent = student
-                                detailRemark  = ""
+                                detailRemark  = remarksMap[key] ?: ""
                                 saved         = false
                             },
                             onReject  = {
                                 markAndPersist(student, AttendanceStatus.ABSENT)
                                 detailStudent = student
-                                detailRemark  = ""
+                                detailRemark  = remarksMap[key] ?: ""
                                 saved         = false
                             },
                             onLeave   = {
                                 markAndPersist(student, AttendanceStatus.APPROVED_LEAVE)
                                 detailStudent = student
-                                detailRemark  = ""
+                                detailRemark  = remarksMap[key] ?: ""
                                 saved         = false
                             },
                             onClick   = {
                                 detailStudent = student
-                                detailRemark  = ""
+                                detailRemark  = remarksMap[key] ?: ""
                             }
                         )
                     }
@@ -609,6 +620,9 @@ fun AdminAttendanceScreen(
                         onClick = {
                             val key           = currentDetail.studentId + "_" + selectedCourse.courseId
                             val currentStatus = statusMap[key] ?: AttendanceStatus.UNMARKED
+                            // Write remark into the session map so re-opening shows it
+                            if (detailRemark.isNotBlank()) remarksMap[key] = detailRemark
+                            else remarksMap.remove(key)
                             // Persist the remark alongside the current status
                             viewModel.markAttendance(
                                 AttendanceRecord(
@@ -708,6 +722,7 @@ private fun StudentAttendanceRow(
     name: String,
     id: String,
     status: AttendanceStatus,
+    hasRemark: Boolean,
     onApprove: () -> Unit,
     onReject: () -> Unit,
     onLeave: () -> Unit,
@@ -731,14 +746,33 @@ private fun StudentAttendanceRow(
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier         = Modifier
-                .size(34.dp)
-                .clip(CircleShape)
-                .background(TealChip.copy(alpha = 0.7f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(initials, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+        // Avatar with a small note badge if a remark exists
+        Box(contentAlignment = Alignment.TopEnd) {
+            Box(
+                modifier         = Modifier
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(TealChip.copy(alpha = 0.7f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(initials, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+            }
+            if (hasRemark) {
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .clip(CircleShape)
+                        .background(LeaveColor),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.Notes,
+                        contentDescription = "Has remark",
+                        tint     = Color.White,
+                        modifier = Modifier.size(8.dp)
+                    )
+                }
+            }
         }
 
         Spacer(Modifier.width(8.dp))

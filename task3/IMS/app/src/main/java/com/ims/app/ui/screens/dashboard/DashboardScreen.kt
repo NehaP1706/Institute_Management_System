@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -24,6 +25,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.ims.app.ui.IMSViewModel
 import com.ims.app.ui.Screen
+import com.ims.app.ui.SearchResult
+import com.ims.app.ui.SearchResultType
 import com.ims.app.ui.components.BottomNavBar
 import com.ims.app.ui.theme.*
 import java.text.SimpleDateFormat
@@ -73,6 +76,8 @@ fun DashboardScreen(
 
     var showMenu           by remember { mutableStateOf(false) }
     var showLanguageDialog by remember { mutableStateOf(false) }
+    var searchQuery        by remember { mutableStateOf("") }
+    var searchActive       by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -108,6 +113,31 @@ fun DashboardScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item { Spacer(Modifier.height(4.dp)) }
+
+            // ── Global search bar ────────────────────────────────────────────
+            item {
+                DashboardSearchBar(
+                    query        = searchQuery,
+                    active       = searchActive,
+                    onQueryChange = { searchQuery = it; searchActive = it.isNotBlank() },
+                    onClear      = { searchQuery = ""; searchActive = false },
+                    results      = if (searchActive)
+                        viewModel.buildSearchIndex().filter {
+                            it.label.contains(searchQuery, ignoreCase = true) ||
+                                    it.subtitle.contains(searchQuery, ignoreCase = true)
+                        }
+                    else emptyList(),
+                    onResultClick = { result ->
+                        searchQuery  = ""
+                        searchActive = false
+                        when (result.route) {
+                            "language_prefs" -> showLanguageDialog = true
+                            "logout"         -> onLogout()
+                            else             -> onNavigate(result.route)
+                        }
+                    }
+                )
+            }
 
             // Profile banner — role-specific
             item {
@@ -194,6 +224,199 @@ fun DashboardScreen(
     // Language / preferences dialog (student only)
     if (showLanguageDialog) {
         LanguagePreferencesDialog(onDismiss = { showLanguageDialog = false })
+    }
+}
+
+// ── Search bar ────────────────────────────────────────────────────────────────
+private val SearchBg      = Color(0xFF0D2233)
+private val SearchDivider = Color(0xFF1E3A4A)
+
+private val SearchResultType.typeLabel: String get() = when (this) {
+    SearchResultType.PAGE    -> "Page"
+    SearchResultType.COURSE  -> "Course"
+    SearchResultType.STUDENT -> "Student"
+    SearchResultType.SLOT    -> "Slot"
+    SearchResultType.SETTING -> "Setting"
+}
+
+private val SearchResultType.typeColor: Color get() = when (this) {
+    SearchResultType.PAGE    -> Color(0xFF00BFA5)
+    SearchResultType.COURSE  -> Color(0xFF5C6BC0)
+    SearchResultType.STUDENT -> Color(0xFF26A69A)
+    SearchResultType.SLOT    -> Color(0xFFFF8F00)
+    SearchResultType.SETTING -> Color(0xFF607D8B)
+}
+
+@Composable
+private fun DashboardSearchBar(
+    query:         String,
+    active:        Boolean,
+    onQueryChange: (String) -> Unit,
+    onClear:       () -> Unit,
+    results:       List<SearchResult>,
+    onResultClick: (SearchResult) -> Unit
+) {
+    Column {
+        // ── Input row ─────────────────────────────────────────────────────────
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(if (active && results.isNotEmpty()) 14.dp else 14.dp))
+                .background(SearchBg)
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Default.Search,
+                contentDescription = null,
+                tint     = if (active) MenuItemActiveBg else SubtextColor,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(Modifier.width(10.dp))
+            BasicTextField(
+                value         = query,
+                onValueChange = onQueryChange,
+                modifier      = Modifier.weight(1f),
+                singleLine    = true,
+                textStyle     = androidx.compose.ui.text.TextStyle(
+                    color    = OnBackground,
+                    fontSize = 14.sp
+                ),
+                decorationBox = { inner ->
+                    if (query.isEmpty()) {
+                        Text(
+                            "Search pages, courses, timetable…",
+                            color    = SubtextColor,
+                            fontSize = 14.sp
+                        )
+                    }
+                    inner()
+                }
+            )
+            if (active) {
+                Spacer(Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .clip(CircleShape)
+                        .background(SubtextColor.copy(alpha = 0.25f))
+                        .clickable(onClick = onClear),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = "Clear",
+                        tint     = SubtextColor,
+                        modifier = Modifier.size(12.dp)
+                    )
+                }
+            }
+        }
+
+        // ── Results dropdown ──────────────────────────────────────────────────
+        if (active && results.isNotEmpty()) {
+            Spacer(Modifier.height(2.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(SearchBg)
+            ) {
+                results.forEachIndexed { idx, result ->
+                    if (idx > 0) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(1.dp)
+                                .background(SearchDivider)
+                        )
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onResultClick(result) }
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Icon badge
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(9.dp))
+                                .background(result.type.typeColor.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                result.icon,
+                                contentDescription = null,
+                                tint     = result.type.typeColor,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        // Labels
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                result.label,
+                                color      = OnBackground,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize   = 13.sp
+                            )
+                            Text(
+                                result.subtitle,
+                                color    = SubtextColor,
+                                fontSize = 11.sp
+                            )
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        // Type pill
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(result.type.typeColor.copy(alpha = 0.13f))
+                                .padding(horizontal = 7.dp, vertical = 3.dp)
+                        ) {
+                            Text(
+                                result.type.typeLabel.uppercase(),
+                                color         = result.type.typeColor,
+                                fontSize      = 8.sp,
+                                fontWeight    = FontWeight.Bold,
+                                letterSpacing = 0.5.sp
+                            )
+                        }
+                    }
+                }
+
+                // Empty hint when query has no matches
+                if (results.isEmpty()) {
+                    Text(
+                        "No results for \"$query\"",
+                        color    = SubtextColor,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp)
+                    )
+                }
+            }
+        }
+
+        // ── Empty state ───────────────────────────────────────────────────────
+        if (active && results.isEmpty() && query.isNotBlank()) {
+            Spacer(Modifier.height(2.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(SearchBg)
+                    .padding(horizontal = 14.dp, vertical = 16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "No results for \"$query\"",
+                    color    = SubtextColor,
+                    fontSize = 13.sp
+                )
+            }
+        }
     }
 }
 

@@ -1,10 +1,25 @@
 package com.ims.app.ui
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.ViewModel
 import com.ims.app.data.model.*
 import com.ims.app.data.model.PersonalTimetableSlot
 import com.ims.app.data.repository.StubRepository
+
+// ── Search result model ───────────────────────────────────────────────────────
+
+enum class SearchResultType { PAGE, COURSE, STUDENT, SLOT, SETTING }
+
+data class SearchResult(
+    val label:    String,
+    val subtitle: String,
+    val type:     SearchResultType,
+    val route:    String,
+    val icon:     ImageVector
+)
 
 class IMSViewModel : ViewModel() {
 
@@ -124,5 +139,79 @@ class IMSViewModel : ViewModel() {
     fun registerUser(name: String, email: String, password: String): Boolean {
         // Stub: always succeeds
         return true
+    }
+
+    // ── Search index ──────────────────────────────────────────────────────────
+    /**
+     * Builds the full searchable index for the current user's role.
+     * Called once per query; cheap since all data is in-memory.
+     *
+     * Index contents:
+     *  - Pages  : always included, role-gated
+     *  - Courses: always included
+     *  - Slots  : timetable slots for the current semester
+     *  - Students: admin only
+     *  - Settings: always included (language, logout)
+     */
+    fun buildSearchIndex(): List<SearchResult> {
+        val results = mutableListOf<SearchResult>()
+
+        // ── Pages ─────────────────────────────────────────────────────────────
+        val pages = buildList {
+            add(SearchResult("Dashboard",         "Home screen",                    SearchResultType.PAGE, Screen.Dashboard.route,      Icons.Default.Home))
+            if (isAdmin() || isFaculty()) {
+                add(SearchResult("Manage Attendance",  "Mark & review student attendance", SearchResultType.PAGE, Screen.AdminAttendance.route, Icons.Default.Fingerprint))
+                add(SearchResult("Timetable Admin",    "Edit lecture schedule",            SearchResultType.PAGE, Screen.AdminTimetable.route,  Icons.Default.CalendarMonth))
+            }
+            if (!isAdmin() && !isFaculty()) {
+                add(SearchResult("My Attendance",      "View your attendance records",     SearchResultType.PAGE, Screen.Attendance.route,      Icons.Default.BarChart))
+                add(SearchResult("Monthly Attendance", "Month-by-month breakdown",         SearchResultType.PAGE, Screen.MonthlyAttendance.route, Icons.Default.DateRange))
+                add(SearchResult("Timetable",          "Your class schedule",              SearchResultType.PAGE, Screen.Timetable.route,        Icons.Default.CalendarMonth))
+            }
+            add(SearchResult("Courses",            "Browse all courses",                SearchResultType.PAGE, Screen.CourseFilter.route,    Icons.Default.MenuBook))
+        }
+        results.addAll(pages)
+
+        // ── Courses ───────────────────────────────────────────────────────────
+        StubRepository.courses.forEach { course ->
+            results.add(SearchResult(
+                label    = course.title,
+                subtitle = "${course.courseCode} · ${course.semester}",
+                type     = SearchResultType.COURSE,
+                route    = Screen.CourseFilter.route,
+                icon     = Icons.Default.School
+            ))
+        }
+
+        // ── Timetable slots ───────────────────────────────────────────────────
+        StubRepository.timetableSlots.forEach { slot ->
+            results.add(SearchResult(
+                label    = slot.course.title,
+                subtitle = "${slot.day.name.lowercase().replaceFirstChar { it.uppercase() }} · ${slot.start}–${slot.end} · ${slot.room.name}",
+                type     = SearchResultType.SLOT,
+                route    = if (isAdmin() || isFaculty()) Screen.AdminTimetable.route else Screen.Timetable.route,
+                icon     = Icons.Default.Schedule
+            ))
+        }
+
+        // ── Students (admin only) ─────────────────────────────────────────────
+        if (isAdmin()) {
+            listOf(StubRepository.sampleStudent).forEach { student ->
+                val displayName = StubRepository.getUserDisplayName(student.user)
+                results.add(SearchResult(
+                    label    = displayName,
+                    subtitle = "Student · ${student.program.name} · ${student.batchId}",
+                    type     = SearchResultType.STUDENT,
+                    route    = Screen.AdminAttendance.route,
+                    icon     = Icons.Default.Person
+                ))
+            }
+        }
+
+        // ── Settings ──────────────────────────────────────────────────────────
+        results.add(SearchResult("Language & Region", "Change display language and timezone", SearchResultType.SETTING, "language_prefs", Icons.Default.Language))
+        results.add(SearchResult("Logout",            "Sign out of your account",             SearchResultType.SETTING, "logout",         Icons.Default.ExitToApp))
+
+        return results
     }
 }
