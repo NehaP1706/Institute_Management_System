@@ -6,9 +6,11 @@ import java.util.Date
 data class Department(
     val departmentId: String,
     val name: String,
-    val code: String
+    val code: String,
+    val headFaculty: Faculty,
 ) {
     fun getMembers(): List<User> = emptyList()
+    fun getFaculty(): List<Faculty> = emptyList()
     fun getStudents(): List<Student> = emptyList()
 }
 
@@ -44,6 +46,13 @@ data class Batch(
     fun removeStudent(id: String) { /* stub */ }
     fun transferStudent(id: String, batchId: String) { /* stub */ }
     fun getCourses(semester: String): List<Course> = emptyList()
+}
+
+data class Branch(
+    val programType: String,
+    val tutor: User
+){
+   fun getFinanceTutor(): List<User> = emptyList()
 }
 
 /** UML: Enrollment */

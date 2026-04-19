@@ -137,7 +137,10 @@ data class LeaveApplication(
     val applicant: User,
     val leaveType: LeaveType,
     val fromDate: Date,
-    val toDate: Date
+    val toDate: Date,
+    val reason: String,
+    val status: String,
+    val Approver: User
 ) {
     fun submit() { /* stub */ }
     fun cancel() { /* stub */ }
@@ -184,7 +187,8 @@ data class NewsItem(
     val author: User,
     val publishedAt: Date,
     val tag: List<String>,
-    val isPublished: Boolean
+    val isPublished: Boolean,
+    val body: String
 ) {
     fun publish() { /* stub */ }
     fun unpublish() { /* stub */ }

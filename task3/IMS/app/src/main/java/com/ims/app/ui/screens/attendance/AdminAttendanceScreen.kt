@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -176,6 +177,22 @@ fun AdminAttendanceScreen(
     var showBatchDropdown by remember { mutableStateOf(false) }
     var showFreqDropdown  by remember { mutableStateOf(false) }
 
+    // ── Day filter — single day selection like the timetable screen ───────────
+    // Derives today's DayEnum from the calendar so the default is always "today"
+    val todayDayEnum = remember {
+        val dow = Calendar.getInstance().get(Calendar.DAY_OF_WEEK)
+        when (dow) {
+            Calendar.MONDAY    -> DayEnum.MONDAY
+            Calendar.TUESDAY   -> DayEnum.TUESDAY
+            Calendar.WEDNESDAY -> DayEnum.WEDNESDAY
+            Calendar.THURSDAY  -> DayEnum.THURSDAY
+            Calendar.FRIDAY    -> DayEnum.FRIDAY
+            Calendar.SATURDAY  -> DayEnum.SATURDAY
+            else               -> DayEnum.SUNDAY
+        }
+    }
+    var selectedDay by remember { mutableStateOf(todayDayEnum) }
+
     // ── Date state ────────────────────────────────────────────────────────────
     var selectedDate   by remember { mutableStateOf(Calendar.getInstance()) }
     var showDatePicker by remember { mutableStateOf(false) }
@@ -203,22 +220,26 @@ fun AdminAttendanceScreen(
     }
 
     // ── Attendance status map  "studentId_courseId" ───────────────────────────
-    val statusMap = remember {
-        mutableStateMapOf<String, AttendanceStatus>().also { map ->
-            StubRepository.attendanceRecords.forEach { r ->
-                map[r.student.studentId + "_" + r.course.courseId] = r.status
-            }
-        }
-    }
+    // FIX: recompute whenever selectedCourse or selectedDate changes so the
+    // displayed status actually reflects the chosen date, not a stale snapshot.
+    val dateKeyFmt = remember { SimpleDateFormat("yyyyMMdd", Locale.getDefault()) }
+    val statusMap  = remember { mutableStateMapOf<String, AttendanceStatus>() }
+    val remarksMap = remember { mutableStateMapOf<String, String>() }
 
-    // ── Remarks map — persists saved remarks for the session ──────────────────
-    val remarksMap = remember {
-        mutableStateMapOf<String, String>().also { map ->
-            StubRepository.attendanceRecords.forEach { r ->
-                if (r.remarks.isNotBlank())
-                    map[r.student.studentId + "_" + r.course.courseId] = r.remarks
+    LaunchedEffect(selectedCourse.courseId, selectedDate.timeInMillis) {
+        statusMap.clear()
+        remarksMap.clear()
+        val selectedDateKey = dateKeyFmt.format(selectedDate.time)
+        StubRepository.attendanceRecords
+            .filter { r ->
+                r.course.courseId == selectedCourse.courseId &&
+                        dateKeyFmt.format(r.date) == selectedDateKey
             }
-        }
+            .forEach { r ->
+                val key = r.student.studentId + "_" + r.course.courseId
+                statusMap[key] = r.status
+                if (r.remarks.isNotBlank()) remarksMap[key] = r.remarks
+            }
     }
 
     // ── Bottom-panel state ────────────────────────────────────────────────────
@@ -239,16 +260,29 @@ fun AdminAttendanceScreen(
         return
     }
 
-    // ── Student list — filtered by course AND batch ───────────────────────────
-    // The stub places all students in BATCH A; B / C are intentionally empty.
-    val studentList: List<Student> = remember(selectedCourse, selectedBatch) {
-        val allForCourse = StubRepository.attendanceRecords
-            .filter { it.course.courseId == selectedCourse.courseId }
+    // ── Student list — filtered by course, batch, AND selected day ───────────
+    // Records are matched to the selected date by comparing yyyyMMdd strings
+    // so only records actually saved for that date appear.
+    val studentList: List<Student> = remember(selectedCourse, selectedBatch, selectedDate.timeInMillis) {
+        val selectedDateKey = dateKeyFmt.format(selectedDate.time)
+
+        val allForDate = StubRepository.attendanceRecords
+            .filter { record ->
+                record.course.courseId == selectedCourse.courseId &&
+                        dateKeyFmt.format(record.date) == selectedDateKey
+            }
             .map { it.student }
             .distinctBy { it.studentId }
-            .ifEmpty { listOf(StubRepository.sampleStudent) }
+            .ifEmpty {
+                // The stub seeds all records with Date() (today), so on today's
+                // date the sample student will always appear as a fallback.
+                val todayKey = dateKeyFmt.format(Date())
+                if (selectedDateKey == todayKey) listOf(StubRepository.sampleStudent)
+                else emptyList()
+            }
+
         when (selectedBatch) {
-            "BATCH A" -> allForCourse
+            "BATCH A" -> allForDate
             else      -> emptyList()
         }
     }
@@ -829,5 +863,22 @@ private fun ActionIconBtn(icon: ImageVector, tint: Color, onClick: () -> Unit) {
         contentAlignment = Alignment.Center
     ) {
         Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(14.dp))
+    }
+}
+// ── Date → DayEnum extension ──────────────────────────────────────────────────
+/**
+ * Converts a [java.util.Date] to the matching [DayEnum] value.
+ * Accepts an optional [Calendar] instance to avoid repeated allocations.
+ */
+private fun java.util.Date.toDayEnum(cal: Calendar = Calendar.getInstance()): DayEnum {
+    cal.time = this
+    return when (cal.get(Calendar.DAY_OF_WEEK)) {
+        Calendar.MONDAY    -> DayEnum.MONDAY
+        Calendar.TUESDAY   -> DayEnum.TUESDAY
+        Calendar.WEDNESDAY -> DayEnum.WEDNESDAY
+        Calendar.THURSDAY  -> DayEnum.THURSDAY
+        Calendar.FRIDAY    -> DayEnum.FRIDAY
+        Calendar.SATURDAY  -> DayEnum.SATURDAY
+        else               -> DayEnum.SUNDAY
     }
 }

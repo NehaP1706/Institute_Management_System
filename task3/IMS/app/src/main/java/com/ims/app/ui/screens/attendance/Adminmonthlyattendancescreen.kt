@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -44,15 +45,12 @@ private data class DayStat(val present: Int, val absent: Int, val leave: Int) {
 }
 
 /**
- * Admin Monthly Attendance Screen — matches the Figma:
+ * Admin Monthly Attendance Screen.
  *
- *  ① Course / Batch / Monthly pill-filter row (all three functional)
- *  ② < Month Year > navigator
- *  ③ Four teal aggregate stat bubbles (Total Students / Present / Absent / Leave)
- *  ④ Calendar grid — each day cell shows P: / A: / L: counts
- *  ⑤ "Export Full Report" button
- *
- * Tapping "Daily" in the Monthly chip invokes [onSwitchToDaily].
+ * Fixes vs original:
+ *  - Course chip opens [CoursePickerSheetContent] bottom sheet (same as daily screen).
+ *  - Batch chip, Monthly chip, and top-bar filter icon all open a filter
+ *    ModalBottomSheet with batch selector + Daily/Monthly view-mode toggle.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -69,15 +67,20 @@ fun AdminMonthlyAttendanceScreen(
     val batchOptions  = listOf("BATCH A", "BATCH B", "BATCH C")
 
     var selectedCourse by remember { mutableStateOf(courseOptions.first()) }
-    var selectedBatch  by remember { mutableStateOf(batchOptions.first())  }
+    var selectedBatch  by remember { mutableStateOf(batchOptions.first()) }
 
-    var showCourseMenu by remember { mutableStateOf(false) }
-    var showBatchMenu  by remember { mutableStateOf(false) }
-    var showFreqMenu   by remember { mutableStateOf(false) }
+    // Course picker sheet
+    var showCourseSheet by remember { mutableStateOf(false) }
+    var pendingCourse   by remember { mutableStateOf(selectedCourse) }
+    var courseSearch    by remember { mutableStateOf("") }
+
+    // Filter sheet (batch + view-mode)
+    var showFilterSheet by remember { mutableStateOf(false) }
+    var pendingBatch    by remember { mutableStateOf(selectedBatch) }
 
     // ── Calendar navigation ───────────────────────────────────────────────────
     val today    = remember { Calendar.getInstance() }
-    var calYear  by remember { mutableStateOf(today.get(Calendar.YEAR))  }
+    var calYear  by remember { mutableStateOf(today.get(Calendar.YEAR)) }
     var calMonth by remember { mutableStateOf(today.get(Calendar.MONTH)) }
 
     val monthLabel = remember(calYear, calMonth) {
@@ -95,15 +98,14 @@ fun AdminMonthlyAttendanceScreen(
         }
     }
 
-    // ── Aggregate stats (scaled to look like 50-student data, as in Figma) ───
-    val rawPresent = monthRecords.count { it.status == AttendanceStatus.PRESENT        }.toFloat()
-    val rawAbsent  = monthRecords.count { it.status == AttendanceStatus.ABSENT         }.toFloat()
-    val rawLeave   = monthRecords.count { it.status == AttendanceStatus.APPROVED_LEAVE }.toFloat()
-    val rawTotal   = (rawPresent + rawAbsent + rawLeave).coerceAtLeast(1f)
-    val scale      = 50f / rawTotal
-    val statPresent = if (rawTotal > 1f) "%.1f".format(rawPresent * scale) else "–"
-    val statAbsent  = if (rawTotal > 1f) "%.1f".format(rawAbsent  * scale) else "–"
-    val statLeave   = if (rawTotal > 1f) "%.1f".format(rawLeave   * scale) else "–"
+    // ── Aggregate stats — summed directly from per-day cell data ───────────
+    val rawPresent  = monthRecords.count { it.status == AttendanceStatus.PRESENT        }
+    val rawAbsent   = monthRecords.count { it.status == AttendanceStatus.ABSENT         }
+    val rawLeave    = monthRecords.count { it.status == AttendanceStatus.APPROVED_LEAVE }
+    val hasAny      = (rawPresent + rawAbsent + rawLeave) > 0
+    val statPresent = if (hasAny) "$rawPresent" else "–"
+    val statAbsent  = if (hasAny) "$rawAbsent"  else "–"
+    val statLeave   = if (hasAny) "$rawLeave"   else "–"
 
     // ── Per-day stats map ─────────────────────────────────────────────────────
     val dayStats: Map<Int, DayStat> by remember(monthRecords) {
@@ -133,8 +135,8 @@ fun AdminMonthlyAttendanceScreen(
             .getActualMaximum(Calendar.DAY_OF_MONTH)
         buildList {
             for (i in firstDow - 1 downTo 0) add(prevDays - i to false)
-            for (d in 1..daysInMonth)         add(d         to true)
-            var nd = 1; while (size % 7 != 0) add(nd++      to false)
+            for (d in 1..daysInMonth)         add(d to true)
+            var nd = 1; while (size % 7 != 0) add(nd++ to false)
         }
     }
 
@@ -152,7 +154,117 @@ fun AdminMonthlyAttendanceScreen(
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── Course picker bottom sheet ────────────────────────────────────────────
+    val courseSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    if (showCourseSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showCourseSheet = false },
+            sheetState       = courseSheetState,
+            containerColor   = Color(0xFF111E2B),
+            dragHandle       = null
+        ) {
+            CoursePickerSheetContent(
+                courses = courseOptions.filter {
+                    courseSearch.isBlank() ||
+                            it.title.contains(courseSearch, ignoreCase = true) ||
+                            it.courseCode.contains(courseSearch, ignoreCase = true)
+                },
+                searchQuery    = courseSearch,
+                onSearchChange = { courseSearch = it },
+                pendingCourse  = pendingCourse,
+                onSelect       = { pendingCourse = it },
+                onBack         = { showCourseSheet = false },
+                onClose        = { showCourseSheet = false; courseSearch = "" },
+                onApply        = {
+                    selectedCourse  = pendingCourse
+                    showCourseSheet = false
+                    courseSearch    = ""
+                }
+            )
+        }
+    }
+
+    // ── Filter bottom sheet (batch + view-mode) ───────────────────────────────
+    val filterSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    if (showFilterSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showFilterSheet = false },
+            sheetState       = filterSheetState,
+            containerColor   = Color(0xFF111E2B),
+            dragHandle = {
+                Box(
+                    modifier         = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        Modifier
+                            .size(width = 36.dp, height = 4.dp)
+                            .clip(CircleShape)
+                            .background(AmMuted.copy(alpha = 0.4f))
+                    )
+                }
+            }
+        ) {
+            Column(
+                modifier            = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 20.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text("Filters", color = OnBackground, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+
+                Text("BATCH", color = AmMuted, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    batchOptions.forEach { batch ->
+                        val selected = batch == pendingBatch
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (selected) AmTeal else AmChipBg)
+                                .clickable { pendingBatch = batch }
+                                .padding(horizontal = 14.dp, vertical = 8.dp)
+                        ) {
+                            Text(batch, color = if (selected) Color.White else AmMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+
+                Text("VIEW MODE", color = AmMuted, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("Monthly", "Daily").forEach { mode ->
+                        val active = mode == "Monthly"
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (active) AmTeal else AmChipBg)
+                                .clickable { showFilterSheet = false; if (mode == "Daily") onSwitchToDaily() }
+                                .padding(horizontal = 14.dp, vertical = 8.dp)
+                        ) {
+                            Text(mode, color = if (active) Color.White else AmMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(4.dp))
+
+                Button(
+                    onClick  = { selectedBatch = pendingBatch; showFilterSheet = false },
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    colors   = ButtonDefaults.buttonColors(containerColor = AmTeal),
+                    shape    = RoundedCornerShape(28.dp)
+                ) {
+                    Icon(Icons.Default.FilterList, null, tint = Color.White)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Apply Filter", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                }
+
+                Spacer(Modifier.height(8.dp))
+            }
+        }
+    }
+
+    // ── Scaffold ──────────────────────────────────────────────────────────────
     Scaffold(
         topBar = {
             TopAppBar(
@@ -165,13 +277,10 @@ fun AdminMonthlyAttendanceScreen(
                     Text("Attendance — Admin", color = OnBackground, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 },
                 actions = {
-                    // Figma shows a filter icon in the top-right
-                    Icon(
-                        imageVector        = Icons.Default.FilterList,
-                        contentDescription = "Filters",
-                        tint               = OnBackground,
-                        modifier           = Modifier.padding(end = 14.dp)
-                    )
+                    // FIX: was a non-clickable Icon; now an IconButton opening the filter sheet
+                    IconButton(onClick = { pendingBatch = selectedBatch; showFilterSheet = true }) {
+                        Icon(Icons.Default.FilterList, "Filters", tint = OnBackground)
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Background)
             )
@@ -189,79 +298,41 @@ fun AdminMonthlyAttendanceScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-
-            // ── ① Filter pill row ─────────────────────────────────────────────
+            // ── ① Course chip + filter pills ──────────────────────────────────
             item {
                 Spacer(Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
 
-                    // Course chip
-                    Box(modifier = Modifier.weight(1f)) {
-                        AmPill(label = selectedCourse.courseCode, onClick = { showCourseMenu = true }, modifier = Modifier.fillMaxWidth())
-                        DropdownMenu(
-                            expanded         = showCourseMenu,
-                            onDismissRequest = { showCourseMenu = false },
-                            modifier         = Modifier.background(AmCard)
-                        ) {
-                            courseOptions.forEach { course ->
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            "${course.courseCode} – ${course.title}",
-                                            color      = if (course.courseId == selectedCourse.courseId) AmTeal else Color.White,
-                                            fontWeight = if (course.courseId == selectedCourse.courseId) FontWeight.Bold else FontWeight.Normal,
-                                            fontSize   = 13.sp
-                                        )
-                                    },
-                                    onClick = { selectedCourse = course; showCourseMenu = false }
-                                )
-                            }
+                // FIX: opens CoursePickerSheetContent bottom sheet
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(AmTeal)
+                        .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) {
+                            pendingCourse   = selectedCourse
+                            courseSearch    = ""
+                            showCourseSheet = true
                         }
+                        .padding(horizontal = 16.dp, vertical = 14.dp)
+                ) {
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "${selectedCourse.title} – ${selectedCourse.courseCode}",
+                            color      = Color.White,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize   = 14.sp,
+                            modifier   = Modifier.weight(1f)
+                        )
+                        Icon(Icons.Default.KeyboardArrowDown, null, tint = Color.White)
                     }
+                }
 
-                    // Batch chip
-                    Box(modifier = Modifier.weight(0.85f)) {
-                        AmPill(label = selectedBatch, onClick = { showBatchMenu = true }, modifier = Modifier.fillMaxWidth())
-                        DropdownMenu(
-                            expanded         = showBatchMenu,
-                            onDismissRequest = { showBatchMenu = false },
-                            modifier         = Modifier.background(AmCard)
-                        ) {
-                            batchOptions.forEach { batch ->
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            batch,
-                                            color      = if (batch == selectedBatch) AmTeal else Color.White,
-                                            fontWeight = if (batch == selectedBatch) FontWeight.Bold else FontWeight.Normal,
-                                            fontSize   = 13.sp
-                                        )
-                                    },
-                                    onClick = { selectedBatch = batch; showBatchMenu = false }
-                                )
-                            }
-                        }
-                    }
+                Spacer(Modifier.height(8.dp))
 
-                    // Monthly / Daily mode chip
-                    Box(modifier = Modifier.weight(0.85f)) {
-                        AmPill(label = "Monthly", onClick = { showFreqMenu = true }, modifier = Modifier.fillMaxWidth())
-                        DropdownMenu(
-                            expanded         = showFreqMenu,
-                            onDismissRequest = { showFreqMenu = false },
-                            modifier         = Modifier.background(AmCard)
-                        ) {
-                            DropdownMenuItem(
-                                text    = { Text("Daily", color = Color.White, fontSize = 13.sp) },
-                                onClick = { showFreqMenu = false; onSwitchToDaily() }
-                            )
-                            DropdownMenuItem(
-                                text        = { Text("Monthly", color = AmTeal, fontWeight = FontWeight.Bold, fontSize = 13.sp) },
-                                leadingIcon = { Icon(Icons.Default.Check, null, tint = AmTeal, modifier = Modifier.size(16.dp)) },
-                                onClick     = { showFreqMenu = false }
-                            )
-                        }
-                    }
+                // FIX: Batch + Monthly chips both open the filter sheet
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AmPill(label = selectedBatch, onClick = { pendingBatch = selectedBatch; showFilterSheet = true })
+                    AmPill(label = "Monthly",     onClick = { pendingBatch = selectedBatch; showFilterSheet = true })
                 }
             }
 
@@ -305,7 +376,7 @@ fun AdminMonthlyAttendanceScreen(
                 )
             }
 
-            // ── ⑤ Export Full Report button ───────────────────────────────────
+            // ── ⑤ Export Full Report ──────────────────────────────────────────
             item {
                 Button(
                     onClick = {
@@ -340,26 +411,26 @@ fun AdminMonthlyAttendanceScreen(
     }
 }
 
-// ── Teal pill chip ────────────────────────────────────────────────────────────
+// ── Filter pill chip ──────────────────────────────────────────────────────────
 @Composable
 private fun AmPill(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(50))
-            .background(AmTeal)
+            .background(AmChipBg)
             .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         contentAlignment = Alignment.Center
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(label, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1)
+            Text(label, color = Color(0xFF90A4AE), fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1)
             Spacer(Modifier.width(4.dp))
-            Icon(Icons.Default.KeyboardArrowDown, null, tint = Color.White, modifier = Modifier.size(14.dp))
+            Icon(Icons.Default.KeyboardArrowDown, null, tint = Color(0xFF90A4AE), modifier = Modifier.size(14.dp))
         }
     }
 }
 
-/** Solid-colour circular stat bubble. */
+// ── Stat bubble ───────────────────────────────────────────────────────────────
 @Composable
 private fun AmStatBubble(label: String, value: String, color: Color) {
     Box(
@@ -373,7 +444,7 @@ private fun AmStatBubble(label: String, value: String, color: Color) {
     }
 }
 
-/** Full calendar grid (Sun-start headers + week rows). */
+// ── Calendar grid ─────────────────────────────────────────────────────────────
 @Composable
 private fun AmCalendarGrid(
     gridDays: List<Pair<Int, Boolean>>,
@@ -387,7 +458,6 @@ private fun AmCalendarGrid(
             .background(AmCard)
             .padding(horizontal = 4.dp, vertical = 10.dp)
     ) {
-        // Day headers
         Row(Modifier.fillMaxWidth()) {
             listOf("S", "M", "T", "W", "T", "F", "S").forEach { h ->
                 Text(h, modifier = Modifier.weight(1f), textAlign = TextAlign.Center,
@@ -395,8 +465,6 @@ private fun AmCalendarGrid(
             }
         }
         Spacer(Modifier.height(6.dp))
-
-        // Week rows
         gridDays.chunked(7).forEach { week ->
             Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
                 week.forEach { (day, isCurrent) ->
@@ -417,14 +485,9 @@ private fun AmCalendarGrid(
     }
 }
 
-/** Single day cell: date number + P:/A:/L: micro-stats (Figma design). */
+// ── Single day cell ───────────────────────────────────────────────────────────
 @Composable
-private fun AmCalDayCell(
-    day:       Int,
-    stat:      DayStat?,
-    isToday:   Boolean,
-    isCurrent: Boolean
-) {
+private fun AmCalDayCell(day: Int, stat: DayStat?, isToday: Boolean, isCurrent: Boolean) {
     val hasData = stat?.hasData == true
     val bg: Color = when {
         isToday   -> AmTeal
@@ -432,7 +495,6 @@ private fun AmCalDayCell(
         isCurrent -> AmSurface.copy(alpha = 0.45f)
         else      -> Color.Transparent
     }
-
     Box(
         modifier = Modifier
             .padding(1.dp)

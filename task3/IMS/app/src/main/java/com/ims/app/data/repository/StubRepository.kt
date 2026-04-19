@@ -54,7 +54,8 @@ object StubRepository {
         program = ProgramType.CSE, cgpa = 8.5f,
         admissionDate = Date(), guardians = emptyList(),
         emergencyContact = listOf("9876543210"),
-        previousEducation = listOf("Class XII - CBSE")
+        previousEducation = listOf("Class XII - CBSE"),
+        advisor= emptyList(), coadvisor= emptyList()
     )
 
     // ── Courses ──────────────────────────────────────────────────────────────
