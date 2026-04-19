@@ -17,7 +17,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ims.app.data.model.CourseType
-import com.ims.app.data.repository.StubRepository
 import com.ims.app.ui.IMSViewModel
 import com.ims.app.ui.components.BottomNavBar
 import com.ims.app.ui.components.HeaderTopBar
@@ -125,9 +124,7 @@ fun CourseFilterScreen(
                         credits    = course.credits,
                         type       = course.type.name,
                         semester   = course.semester,
-                        instructor = course.instructor.firstOrNull()?.employee?.user?.let {
-                            StubRepository.getUserDisplayName(it)
-                        } ?: "TBA"
+                        instructor = course.instructorName
                     )
                 }
             }

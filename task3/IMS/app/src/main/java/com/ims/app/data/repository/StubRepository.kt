@@ -6,7 +6,7 @@ import java.util.Date
 
 /**
  * In-memory stub repository simulating a backend.
- * Supports role switching (ADMIN / STUDENT / FACULTY) for end-to-end demo.
+ * Supports two roles: ADMIN and STUDENT.
  */
 object StubRepository {
 
@@ -35,19 +35,6 @@ object StubRepository {
         )
     )
 
-    private val facultyRole = Role(
-        roleId = "r3", roleName = "Faculty",
-        permissions = listOf(
-            Permission("p6", Module.ATTENDANCE, AccessLevel.EDIT, AccessLevel.values().toList()),
-            Permission("p7", Module.TIME_TABLE, AccessLevel.VIEW, listOf(AccessLevel.VIEW))
-        ),
-        moduleAccess = mapOf(
-            Module.DASHBOARD to AccessLevel.VIEW,
-            Module.ATTENDANCE to AccessLevel.EDIT,
-            Module.TIME_TABLE to AccessLevel.VIEW
-        )
-    )
-
     // ── Users ────────────────────────────────────────────────────────────────
 
     private val adminUser = User(
@@ -62,32 +49,9 @@ object StubRepository {
         lastLogin = Date(), languagePref = "en", timezonePref = "IST"
     )
 
-    private val facultyUser = User(
-        userId = "u3", passwordHash = "faculty123",
-        role = listOf(facultyRole), isActive = true,
-        lastLogin = Date(), languagePref = "en", timezonePref = "IST"
-    )
-
-    // ── Persons & Faculty ────────────────────────────────────────────────────
-
-    private val adminPerson = Person("p1","Academic Admin","admin@ims.edu","9999999999","",Date())
-    private val studentPerson = Person("p2","Alex Smith","alex@ims.edu","8888888888","",Date())
-    private val facultyPerson = Person("p3","Dr. Ramesh","ramesh@ims.edu","7777777777","",Date())
-
-    private val dummyPayroll = PayrollConfig("pc1",null,50000f,
-        mapOf("HRA" to 5000f,"DA" to 2000f),
-        mapOf("PF" to 3000f,"Tax" to 4000f), Date())
-
-    private val facultyEmployee = Employee(
-        "e1", facultyUser, Designation.PROFESSOR, "d1", Date(), null, dummyPayroll
-    )
-
-    val sampleFaculty = Faculty("f1", facultyEmployee, "Algorithms", "Block A, Room 205")
-
     val sampleStudent = Student(
         studentId = "s1", user = studentUser, batchId = "b1",
         program = ProgramType.CSE, cgpa = 8.5f,
-        advisor = sampleFaculty, coadvisor = null,
         admissionDate = Date(), guardians = emptyList(),
         emergencyContact = listOf("9876543210"),
         previousEducation = listOf("Class XII - CBSE")
@@ -97,15 +61,15 @@ object StubRepository {
 
     val courses = listOf(
         Course("c1","CS101","Advanced Algorithms",4, CourseType.H1,
-            listOf(ProgramType.CSE),"Graphs, DP, etc.", listOf(sampleFaculty),"Sem 5"),
+            listOf(ProgramType.CSE),"Graphs, DP, etc.", "Dr. Ramesh","Sem 5"),
         Course("c2","CS102","Operating Systems",4, CourseType.H1,
-            listOf(ProgramType.CSE),"Process, Memory", listOf(sampleFaculty),"Sem 5"),
+            listOf(ProgramType.CSE),"Process, Memory", "Dr. Ramesh","Sem 5"),
         Course("c3","CS103","Database Systems",3, CourseType.H2,
-            listOf(ProgramType.CSE),"SQL, NoSQL", listOf(sampleFaculty),"Sem 5"),
+            listOf(ProgramType.CSE),"SQL, NoSQL", "Dr. Priya","Sem 5"),
         Course("c4","CS104","Computer Networks",3, CourseType.H2,
-            listOf(ProgramType.CSE),"TCP/IP", listOf(sampleFaculty),"Sem 5"),
+            listOf(ProgramType.CSE),"TCP/IP", "Dr. Priya","Sem 5"),
         Course("c5","CS201","Machine Learning",4, CourseType.FULL,
-            listOf(ProgramType.CSE, ProgramType.ECE),"ML Fundamentals", listOf(sampleFaculty),"Sem 6"),
+            listOf(ProgramType.CSE, ProgramType.ECE),"ML Fundamentals", "Dr. Ramesh","Sem 6"),
     )
 
     // ── Rooms ────────────────────────────────────────────────────────────────
@@ -116,12 +80,10 @@ object StubRepository {
     val lab2    = Room("rm4","CS-Lab-2",40, RoomType.ComputerLab,"Lab Block")
     val sciLab  = Room("rm5","Sci-Lab-1",30, RoomType.ScienceLab,"Science Block")
 
-    /** All rooms available for booking — used by the timetable slot form. */
     val allRooms: List<Room> get() = listOf(room101, room201, lab1, lab2, sciLab)
 
     // ── Timetable Slots ──────────────────────────────────────────────────────
 
-    // FIX: Changed to MutableList so addTimetableSlot() can persist new entries
     val timetableSlots: MutableList<TimetableSlot> = mutableListOf(
         TimetableSlot("ts1", courses[0], DayEnum.MONDAY,    "09:00","10:00", room101, "Sem 5"),
         TimetableSlot("ts2", courses[1], DayEnum.MONDAY,    "10:00","11:00", room201, "Sem 5"),
@@ -131,7 +93,6 @@ object StubRepository {
         TimetableSlot("ts6", courses[4], DayEnum.FRIDAY,    "10:00","11:00", lab1,    "Sem 6"),
     )
 
-    /** Persists a new or edited timetable slot. Replaces existing slot with same ID. */
     fun saveTimetableSlot(slot: TimetableSlot) {
         timetableSlots.removeIf { it.slotId == slot.slotId }
         timetableSlots.add(slot)
@@ -151,21 +112,18 @@ object StubRepository {
 
     val dashboardStats = mapOf(
         "totalStudents" to 12482,
-        "totalFaculty" to 842,
         "totalCourses" to 28
     )
 
     // ── Auth ──────────────────────────────────────────────────────────────────
 
-    /** Returns User if credentials match, null otherwise */
     fun login(credentials: String): User? {
         val (username, password) = credentials.split(":").let {
             if (it.size == 2) it[0] to it[1] else return null
         }
         return when {
-            username == "admin" && password == "admin123" -> adminUser
+            username == "admin"   && password == "admin123"   -> adminUser
             username == "student" && password == "student123" -> studentUser
-            username == "faculty" && password == "faculty123" -> facultyUser
             else -> null
         }
     }
@@ -173,7 +131,6 @@ object StubRepository {
     fun getUserDisplayName(user: User): String = when(user.userId) {
         "u1" -> "Academic Admin"
         "u2" -> "Alex Smith"
-        "u3" -> "Dr. Ramesh"
         else -> "Unknown"
     }
 

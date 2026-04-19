@@ -17,17 +17,6 @@ data class Employee(
     fun updatePersonalDetails(details: Map<String, Any>) { /* stub */ }
 }
 
-/** UML: Faculty extends Employee */
-data class Faculty(
-    val facultyId: String,
-    val employee: Employee,
-    val specialisation: String,
-    val officeLocation: String
-) {
-    fun getCoursesTaught(semester: String): List<Course> = emptyList()
-    fun getSupervisedStudents(): List<Student> = emptyList()
-}
-
 /** UML: Student extends User */
 data class Student(
     val studentId: String,
@@ -35,8 +24,6 @@ data class Student(
     val batchId: String,
     val program: ProgramType,
     val cgpa: Float,
-    val advisor: Faculty?,
-    val coadvisor: Faculty?,
     val admissionDate: Date,
     val guardians: List<Guardian>,
     val emergencyContact: List<String>,

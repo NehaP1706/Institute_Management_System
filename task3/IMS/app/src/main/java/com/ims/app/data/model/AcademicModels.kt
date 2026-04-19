@@ -6,11 +6,9 @@ import java.util.Date
 data class Department(
     val departmentId: String,
     val name: String,
-    val code: String,
-    val headFaculty: Faculty
+    val code: String
 ) {
     fun getMembers(): List<User> = emptyList()
-    fun getFaculty(): List<Faculty> = emptyList()
     fun getStudents(): List<Student> = emptyList()
 }
 
@@ -23,7 +21,7 @@ data class Course(
     val type: CourseType,
     val program: List<ProgramType>,
     val syllabus: String,
-    val instructor: List<Faculty>,
+    val instructorName: String,
     val semester: String
 ) {
     fun getEnrolledStudents(): List<Student> = emptyList()

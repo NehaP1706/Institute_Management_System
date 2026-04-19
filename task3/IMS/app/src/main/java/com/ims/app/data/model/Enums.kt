@@ -16,7 +16,7 @@ enum class ApprovalStatus { APPROVED, PENDING, REJECTED }
 enum class InterviewMode { ONLINE, OFFLINE }
 enum class InterviewOutcome { RECRUITED, NOT_RECRUITED }
 enum class AccessLevel { VIEW, EDIT, DELETE }
-enum class AudienceType { BATCH, DEPARTMENT, ALL, HOSTEL1, HOSTEL2, FACULTY }
+enum class AudienceType { BATCH, DEPARTMENT, ALL, HOSTEL1, HOSTEL2 }
 enum class Designation {
     PROFESSOR, ASSOCIATE_PROFESSOR, DEAN_OF_ACADEMICS,
     LAB_TECHNICIANS, REGISTRAR, MAINTENANCE_WORKERS, SECURITY_PERSONS

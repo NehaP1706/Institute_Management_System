@@ -53,12 +53,10 @@ class IMSViewModel : ViewModel() {
     fun getCurrentUserEmail(): String = when (currentUser?.userId) {
         "u1" -> "admin@ims.edu"
         "u2" -> "alex@ims.edu"
-        "u3" -> "ramesh@ims.edu"
         else -> ""
     }
 
     fun isAdmin(): Boolean = getCurrentUserRole() == "Admin"
-    fun isFaculty(): Boolean = getCurrentUserRole() == "Faculty"
 
     // ── Dashboard ─────────────────────────────────────────────────────────────
     val dashboardStats = StubRepository.dashboardStats
@@ -159,11 +157,11 @@ class IMSViewModel : ViewModel() {
         // ── Pages ─────────────────────────────────────────────────────────────
         val pages = buildList {
             add(SearchResult("Dashboard",         "Home screen",                    SearchResultType.PAGE, Screen.Dashboard.route,      Icons.Default.Home))
-            if (isAdmin() || isFaculty()) {
+            if (isAdmin()) {
                 add(SearchResult("Manage Attendance",  "Mark & review student attendance", SearchResultType.PAGE, Screen.AdminAttendance.route, Icons.Default.Fingerprint))
                 add(SearchResult("Timetable Admin",    "Edit lecture schedule",            SearchResultType.PAGE, Screen.AdminTimetable.route,  Icons.Default.CalendarMonth))
             }
-            if (!isAdmin() && !isFaculty()) {
+            if (!isAdmin()) {
                 add(SearchResult("My Attendance",      "View your attendance records",     SearchResultType.PAGE, Screen.Attendance.route,      Icons.Default.BarChart))
                 add(SearchResult("Monthly Attendance", "Month-by-month breakdown",         SearchResultType.PAGE, Screen.MonthlyAttendance.route, Icons.Default.DateRange))
                 add(SearchResult("Timetable",          "Your class schedule",              SearchResultType.PAGE, Screen.Timetable.route,        Icons.Default.CalendarMonth))
@@ -189,7 +187,7 @@ class IMSViewModel : ViewModel() {
                 label    = slot.course.title,
                 subtitle = "${slot.day.name.lowercase().replaceFirstChar { it.uppercase() }} · ${slot.start}–${slot.end} · ${slot.room.name}",
                 type     = SearchResultType.SLOT,
-                route    = if (isAdmin() || isFaculty()) Screen.AdminTimetable.route else Screen.Timetable.route,
+                route    = if (isAdmin()) Screen.AdminTimetable.route else Screen.Timetable.route,
                 icon     = Icons.Default.Schedule
             ))
         }

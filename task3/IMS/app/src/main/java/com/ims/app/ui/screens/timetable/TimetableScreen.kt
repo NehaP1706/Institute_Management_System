@@ -294,7 +294,7 @@ fun TimetableSlotCard(
     val avatarBgColor     = if (isPast) Color(0xFF1C3347) else Color(0xFF0A5446)
     val avatarTextColor   = if (isPast) TextMuted  else TealPrimary
 
-    // Faculty initials from course (use first two words of title as initials)
+    // Instructor initials derived from course title (first two words)
     val initials = slot.course.title
         .split(" ")
         .filter { it.isNotBlank() }

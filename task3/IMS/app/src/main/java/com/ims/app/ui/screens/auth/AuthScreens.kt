@@ -33,7 +33,7 @@ import com.ims.app.ui.theme.*
  * Combined Login + Sign-Up screen.
  *
  * FIX: [onLoginSuccess] now receives the destination route so the nav host
- * can send admins/faculty to [Screen.Dashboard] and students to
+ * can send admins to [Screen.Dashboard] and students to
  * [Screen.Dashboard] (same composable, but the composable itself now renders
  * role-appropriate content).  If you later create a dedicated StudentDashboard
  * screen just change the route returned here.
@@ -196,7 +196,7 @@ fun LoginScreen(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             modifier = Modifier.padding(vertical = 6.dp)
                         ) {
-                            listOf("admin", "student", "faculty").forEach { role ->
+                            listOf("admin", "student").forEach { role ->
                                 AssistChip(
                                     onClick = {
                                         loginEmail = "$role@ims.ac.in"

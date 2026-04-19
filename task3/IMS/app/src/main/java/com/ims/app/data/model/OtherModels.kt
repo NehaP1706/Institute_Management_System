@@ -155,7 +155,7 @@ data class Recruitment(
     val outcome: InterviewOutcome?
 ) {
     fun scheduleInterview(date: Date, mode: InterviewMode) { /* stub */ }
-    fun assignPanel(facultyIds: List<String>) { /* stub */ }
+    fun assignPanel(panelIds: List<String>) { /* stub */ }
     fun recordOutcome(result: InterviewOutcome) { /* stub */ }
     fun sendInvitation() { /* stub */ }
 }

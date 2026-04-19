@@ -71,8 +71,7 @@ fun DashboardScreen(
     val stats     = viewModel.dashboardStats
 
     val isAdmin   = viewModel.isAdmin()
-    val isFaculty = viewModel.isFaculty()
-    val isStudent = !isAdmin && !isFaculty
+    val isStudent = !isAdmin
 
     var showMenu           by remember { mutableStateOf(false) }
     var showLanguageDialog by remember { mutableStateOf(false) }
@@ -183,17 +182,11 @@ fun DashboardScreen(
                 }
             }
 
-            // ── Faculty body ────────────────────────────────────────────────
-            if (isFaculty) {
-                item { FacultyQuickActions(onNavigate = onNavigate) }
-            }
-
             // ── Admin body ──────────────────────────────────────────────────
             if (isAdmin) {
                 item {
                     AdminStatCards(
                         students         = "${stats["totalStudents"]    ?: 0}",
-                        faculty          = "${stats["totalFaculty"]     ?: 0}",
                         pendingApprovals = "${stats["pendingApprovals"] ?: 0}"
                     )
                 }
@@ -207,10 +200,6 @@ fun DashboardScreen(
     if (showMenu) {
         when {
             isAdmin   -> AdminMenuOverlay(
-                onNavigate = { route -> showMenu = false; onNavigate(route) },
-                onDismiss  = { showMenu = false }
-            )
-            isFaculty -> FacultyMenuOverlay(
                 onNavigate = { route -> showMenu = false; onNavigate(route) },
                 onDismiss  = { showMenu = false }
             )
@@ -565,7 +554,7 @@ private fun AdminProfileBanner(name: String, role: String, email: String) {
     }
 }
 
-// ── Profile Banner (Student / Faculty — unchanged) ────────────────────────────
+// ── Profile Banner ────────────────────────────────────────────────────────────
 @Composable
 private fun ProfileBanner(name: String, role: String, email: String) {
     val lastActive = remember { SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date()) }
@@ -794,39 +783,6 @@ private fun StudentBottomNavBar(currentRoute: String, onNavigate: (String) -> Un
     }
 }
 
-// ── Faculty Quick Actions ─────────────────────────────────────────────────────
-@Composable
-private fun FacultyQuickActions(onNavigate: (String) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("QUICK ACTIONS", color = SubtextColor, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp)
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            FacultyActionCard("Mark Attendance", Icons.Default.Fingerprint, Modifier.weight(1f)) { onNavigate(Screen.AdminAttendance.route) }
-            FacultyActionCard("Timetable", Icons.Default.Schedule, Modifier.weight(1f)) { onNavigate(Screen.Timetable.route) }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            FacultyActionCard("Courses", Icons.Default.MenuBook, Modifier.weight(1f)) { onNavigate(Screen.CourseFilter.route) }
-            Spacer(Modifier.weight(1f))
-        }
-    }
-}
-
-@Composable
-private fun FacultyActionCard(label: String, icon: ImageVector, modifier: Modifier, onClick: () -> Unit) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(ModuleActiveBg)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 20.dp)
-    ) {
-        Column {
-            Icon(icon, null, tint = OnBanner, modifier = Modifier.size(26.dp))
-            Spacer(Modifier.height(10.dp))
-            Text(label, color = OnBanner, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-        }
-    }
-}
-
 // ── Admin Stat Cards (centered, compact) ──────────────────────────────────────
 private data class AdminStat(
     val label:    String,
@@ -837,10 +793,9 @@ private data class AdminStat(
 )
 
 @Composable
-private fun AdminStatCards(students: String, faculty: String, pendingApprovals: String) {
+private fun AdminStatCards(students: String, pendingApprovals: String) {
     val items = listOf(
         AdminStat("TOTAL STUDENTS",    students,         "+4.2%",         GreenAccent, Icons.Default.TrendingUp),
-        AdminStat("ACTIVE FACULTY",    faculty,          "Stable",        GreenAccent, Icons.Default.CheckCircle),
         AdminStat("PENDING APPROVALS", pendingApprovals, "High Priority", RedAccent,   Icons.Default.Warning),
     )
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1103,23 +1058,12 @@ fun AdminMenuOverlay(onNavigate: (String) -> Unit, onDismiss: () -> Unit) {
     val menuItems = listOf(
         AdminMenuItem("Attendance Admin",   "Manage student logs & verification",  Icons.Default.Fingerprint,          Screen.AdminAttendance.route, isActive = true),
         AdminMenuItem("Timetable Admin",    "Optimize lecture halls & schedules",  Icons.Default.CalendarMonth,        Screen.AdminTimetable.route,  isActive = true),
-        AdminMenuItem("Leave Approvals",    "Faculty & Staff requests",            Icons.Default.EventAvailable,       Screen.Dashboard.route,       isSoon   = true),
+        AdminMenuItem("Leave Approvals",    "Staff requests",                              Icons.Default.EventAvailable,       Screen.Dashboard.route,       isSoon   = true),
         AdminMenuItem("Payroll Config",     "Institutional disbursement tools",    Icons.Default.AccountBalanceWallet, Screen.Dashboard.route,       isSoon   = true),
         AdminMenuItem("Fee Defaulters",     "Automated billing reminders",         Icons.Default.Build,                Screen.Dashboard.route,       isSoon   = true),
         AdminMenuItem("Broadcast Messages", "Mass notifications & alerts",         Icons.Default.Campaign,             Screen.Dashboard.route,       isSoon   = true),
     )
     MenuOverlayScaffold("Admin Menu", "Management Modules", menuItems, onNavigate, onDismiss)
-}
-
-// ── Faculty Menu Overlay ──────────────────────────────────────────────────────
-@Composable
-fun FacultyMenuOverlay(onNavigate: (String) -> Unit, onDismiss: () -> Unit) {
-    val menuItems = listOf(
-        AdminMenuItem("Mark Attendance", "Record student attendance for your courses", Icons.Default.Fingerprint,   Screen.AdminAttendance.route, isActive = true),
-        AdminMenuItem("Timetable",       "View your lecture schedule",                 Icons.Default.CalendarMonth, Screen.Timetable.route,       isActive = true),
-        AdminMenuItem("Courses",         "Browse assigned courses",                    Icons.Default.MenuBook,      Screen.CourseFilter.route,    isActive = true),
-    )
-    MenuOverlayScaffold("Faculty Menu", "Teaching Modules", menuItems, onNavigate, onDismiss)
 }
 
 // ── Student Menu Overlay ──────────────────────────────────────────────────────

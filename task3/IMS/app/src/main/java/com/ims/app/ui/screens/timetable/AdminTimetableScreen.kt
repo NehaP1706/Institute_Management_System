@@ -617,12 +617,11 @@ private fun TimetableSlotCard(
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
 
-    val facultyInitials = slot.course.instructor.firstOrNull()
-        ?.employee?.user
-        ?.let { StubRepository.getUserDisplayName(it) }
-        ?.split(" ")
-        ?.mapNotNull { it.firstOrNull()?.toString() }
-        ?.take(2)?.joinToString("") ?: "DR"
+    val instructorInitials = slot.course.instructorName
+        .split(" ")
+        .mapNotNull { it.firstOrNull()?.toString() }
+        .take(2).joinToString("")
+        .ifEmpty { "IN" }
 
     Row(
         modifier = Modifier
@@ -669,7 +668,7 @@ private fun TimetableSlotCard(
             Text(slot.course.courseCode, color = Color.White.copy(0.70f), fontSize = 12.sp)
         }
 
-        // Right: faculty avatar + overflow menu
+        // Right: instructor avatar + overflow menu
         Column(
             modifier            = Modifier.padding(end = 10.dp, top = 14.dp, bottom = 14.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -682,7 +681,7 @@ private fun TimetableSlotCard(
                     .background(SlotCardDark),
                 contentAlignment = Alignment.Center
             ) {
-                Text(facultyInitials, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Text(instructorInitials, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             }
 
             Spacer(Modifier.height(8.dp))
