@@ -1,6 +1,15 @@
 package com.ims.app.ui.screens.timetable
 
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -14,6 +23,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -27,19 +37,19 @@ import com.ims.app.data.model.PersonalTimetableSlot
 import com.ims.app.data.model.TimetableSlot
 import com.ims.app.ui.IMSViewModel
 
-private val BgDeep        = Color(0xFF0A1628)   
-private val BgCard        = Color(0xFF0F2137)   
-private val TealPrimary   = Color(0xFF1ABC9C)   
-private val TealCard      = Color(0xFF0E7C6A)   
-private val TealCardLight = Color(0xFF15A889)   
+private val BgDeep        = Color(0xFF0A1628)
+private val BgCard        = Color(0xFF0F2137)
+private val TealPrimary   = Color(0xFF1ABC9C)
+private val TealCard      = Color(0xFF0E7C6A)
+private val TealCardLight = Color(0xFF15A889)
 private val TextWhite     = Color(0xFFFFFFFF)
-private val TextMuted     = Color(0xFF7A9BB5)   
-private val TextSub       = Color(0xFFB0C4D8)   
-private val AvatarBg      = Color(0xFF1E3A52)   
-private val OngoingAmber  = Color(0xFFFFB300)   
-private val ConflictBg    = Color(0xFF3D1A1A)   
-private val ConflictText  = Color(0xFFFF6B6B)   
-private val NavBg         = Color(0xFF0D1E30)   
+private val TextMuted     = Color(0xFF7A9BB5)
+private val TextSub       = Color(0xFFB0C4D8)
+private val AvatarBg      = Color(0xFF1E3A52)
+private val OngoingAmber  = Color(0xFFFFB300)
+private val ConflictBg    = Color(0xFF3D1A1A)
+private val ConflictText  = Color(0xFFFF6B6B)
+private val NavBg         = Color(0xFF0D1E30)
 private val InactiveNavBg = Color(0xFF0A1628)
 
 @Composable
@@ -49,7 +59,20 @@ fun TimetableScreen(
     onNavigate: (String) -> Unit
 ) {
     var selectedDay    by remember { mutableStateOf(DayEnum.WEDNESDAY) }
-    var showAddScreen  by remember { mutableStateOf(false) }
+    var showAddScreen   by remember { mutableStateOf(false) }
+    var showDragPanel   by remember { mutableStateOf(false) }
+
+    // ── Student drag-and-drop overlay ────────────────────────────────────────
+    if (showDragPanel) {
+        StudentDragPanel(
+            onDismiss  = { showDragPanel = false },
+            onDropped  = {
+                showDragPanel  = false
+                showAddScreen  = true          // opens AddPersonalSlotScreen
+            }
+        )
+        return
+    }
 
     if (showAddScreen) {
         AddPersonalSlotScreen(
@@ -79,13 +102,28 @@ fun TimetableScreen(
             TimetableBottomNav(currentRoute = currentRoute, onNavigate = onNavigate)
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick        = { showAddScreen = true },
-                containerColor = TealPrimary,
-                contentColor   = Color.Black,
-                shape          = RoundedCornerShape(16.dp)
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Add personal slot")
+                // Drag-and-drop FAB
+                FloatingActionButton(
+                    onClick        = { showDragPanel = true },
+                    containerColor = Color(0xFF0E7C6A),
+                    contentColor   = Color.White,
+                    shape          = RoundedCornerShape(16.dp)
+                ) {
+                    Icon(Icons.Default.DragIndicator, contentDescription = "Drag & Drop slot")
+                }
+                // Regular add FAB
+                FloatingActionButton(
+                    onClick        = { showAddScreen = true },
+                    containerColor = TealPrimary,
+                    contentColor   = Color.Black,
+                    shape          = RoundedCornerShape(16.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Add personal slot")
+                }
             }
         },
         containerColor = BgDeep
@@ -537,7 +575,7 @@ private fun TimetableBottomNav(
                 isSelected = currentRoute == "dashboard",
                 onClick = { onNavigate("dashboard") }
             )
-            
+
             BottomNavItem(
                 label = "ATTENDANCE",
                 icon = {
@@ -878,3 +916,222 @@ private fun personalSlotFieldColors(bg: Color, text: Color) =
         cursorColor             = TealPrimary,
         focusedLabelColor       = TealPrimary
     )
+
+private data class StudentDragState(
+    val isDragging: Boolean = false,
+    val offsetX: Float      = 0f,   // absolute finger X in root coords
+    val offsetY: Float      = 0f    // absolute finger Y in root coords
+)
+
+@Composable
+fun StudentDragPanel(
+    onDismiss: () -> Unit,
+    onDropped: () -> Unit
+) {
+    var dragState by remember { mutableStateOf(StudentDragState()) }
+    var cardPos   by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.6f))
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }
+                ) { if (!dragState.isDragging) onDismiss() }
+        )
+
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+                .background(BgCard)
+                .padding(horizontal = 20.dp, vertical = 16.dp)
+        ) {
+            Box(
+                Modifier
+                    .size(width = 36.dp, height = 4.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF1E3A52))
+                    .align(Alignment.CenterHorizontally)
+            )
+            Spacer(Modifier.height(14.dp))
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.DragIndicator,
+                    contentDescription = null,
+                    tint     = TealPrimary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Drag to Add a Personal Slot",
+                    color      = TextWhite,
+                    fontWeight = FontWeight.Bold,
+                    fontSize   = 16.sp
+                )
+            }
+            Text(
+                "Long-press the card below and drag it upward — release to fill in the details",
+                color    = TextMuted,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+
+            Spacer(Modifier.height(20.dp))
+
+            val alpha by animateFloatAsState(
+                targetValue   = if (dragState.isDragging) 0.35f else 1f,
+                animationSpec = tween(200),
+                label         = "card_alpha"
+            )
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .alpha(alpha)
+                    .onGloballyPositioned { coords ->
+                        cardPos = coords.positionInRoot()
+                    }
+                    .pointerInput(Unit) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = { offset ->
+                                // offset is relative to the touch target; add card's
+                                // root position to get absolute screen coordinates
+                                dragState = StudentDragState(
+                                    isDragging = true,
+                                    offsetX    = cardPos.x + offset.x,
+                                    offsetY    = cardPos.y + offset.y
+                                )
+                            },
+                            onDrag = { _, dragAmount ->
+                                // dragAmount is a per-frame delta — accumulate
+                                dragState = dragState.copy(
+                                    offsetX = dragState.offsetX + dragAmount.x,
+                                    offsetY = dragState.offsetY + dragAmount.y
+                                )
+                            },
+                            onDragEnd    = { onDropped() },
+                            onDragCancel = { dragState = StudentDragState() }
+                        )
+                    }
+            ) {
+                EmptyPersonalSlotCard()
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            Text(
+                "— or tap the card to open the form directly —",
+                color     = TextMuted,
+                fontSize  = 11.sp,
+                modifier  = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .clickable { onDropped() }
+            )
+
+            Spacer(Modifier.height(24.dp))
+        }
+
+        if (dragState.isDragging) {
+            // Ghost card centered on the finger — use absolute root coords
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .offset {
+                        IntOffset(
+                            (dragState.offsetX - 150.dp.toPx()).roundToInt(),
+                            (dragState.offsetY - 30.dp.toPx()).roundToInt()
+                        )
+                    }
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(300.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(
+                            androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                listOf(TealCard.copy(alpha = 0.92f), TealCardLight.copy(alpha = 0.92f))
+                            )
+                        )
+                        .padding(horizontal = 16.dp, vertical = 14.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.DragIndicator, null, tint = Color.White.copy(0.7f),
+                            modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Column {
+                            Text("New Personal Slot", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text("Drop to add details", color = Color.White.copy(0.65f), fontSize = 11.sp)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptyPersonalSlotCard() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(
+                androidx.compose.ui.graphics.Brush.horizontalGradient(
+                    listOf(TealCard, TealCardLight)
+                )
+            )
+            .border(
+                width = 2.dp,
+                color = TealPrimary.copy(alpha = 0.5f),
+                shape = RoundedCornerShape(20.dp)
+            )
+            .padding(horizontal = 16.dp, vertical = 18.dp)
+    ) {
+        Row(
+            verticalAlignment  = Alignment.CenterVertically,
+            modifier           = Modifier.fillMaxWidth()
+        ) {
+            Icon(
+                Icons.Default.DragIndicator,
+                contentDescription = null,
+                tint     = Color.White.copy(alpha = 0.8f),
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "New Personal Slot",
+                    color      = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize   = 15.sp
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "Long-press & drag to schedule",
+                    color    = Color.White.copy(0.65f),
+                    fontSize = 11.sp
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.Add,
+                    contentDescription = null,
+                    tint     = Color.White,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+        }
+    }
+}

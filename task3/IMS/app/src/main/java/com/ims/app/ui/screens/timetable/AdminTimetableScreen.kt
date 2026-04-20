@@ -3,6 +3,7 @@ package com.ims.app.ui.screens.timetable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -26,6 +27,14 @@ import com.ims.app.data.repository.StubRepository
 import com.ims.app.ui.IMSViewModel
 import com.ims.app.ui.components.BottomNavBar
 import com.ims.app.ui.theme.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.window.Popup
+import kotlin.math.roundToInt
 
 private val SlotCardBg    = Color(0xFF00897B)
 private val SlotCardDark  = Color(0xFF00695C)
@@ -95,6 +104,8 @@ fun AdminTimetableScreen(
 
     var selectedCourseFilter by remember { mutableStateOf<Course?>(null) }
     var showCourseFilter     by remember { mutableStateOf(false) }
+    var showDragPanel        by remember { mutableStateOf(false) }
+    var dragDropCourse       by remember { mutableStateOf<Course?>(null) }
 
     val allSlots  = viewModel.getTimetableForSemester(selectedSem)
     val daySlots  = allSlots.filter { it.day == selectedDay }
@@ -245,21 +256,40 @@ fun AdminTimetableScreen(
         }
     }
 
+    // ── Drag-and-drop panel overlay ─────────────────────────────────────────
+    if (showDragPanel) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            AdminCourseDragPanel(
+                courses  = viewModel.allCourses,
+                onDismiss = { showDragPanel = false },
+                onCourseDropped = { course ->
+                    dragDropCourse = course
+                    showDragPanel  = false
+                    editingSlot    = null        // fresh slot, course pre-filled
+                    showAddDialog  = true
+                }
+            )
+        }
+        return
+    }
+
     if (showAddDialog) {
         AddTimetableSlotScreen(
-            existingSlot = editingSlot,
-            currentSem   = selectedSem,
-            allRooms     = viewModel.getAllRooms(),
+            existingSlot  = editingSlot,
+            currentSem    = selectedSem,
+            allRooms      = viewModel.getAllRooms(),
             existingSlots = viewModel.getTimetableForSemester(selectedSem),
-            courses      = viewModel.allCourses,
-            onBack       = { showAddDialog = false; editingSlot = null },
-            onSave       = { slot ->
+            courses       = viewModel.allCourses,
+            preselectedCourse = dragDropCourse,
+            onBack        = { showAddDialog = false; editingSlot = null; dragDropCourse = null },
+            onSave        = { slot ->
                 viewModel.addTimetableSlot(slot)
-                showAddDialog = false
-                editingSlot   = null
+                showAddDialog  = false
+                editingSlot    = null
+                dragDropCourse = null
             }
         )
-        return  
+        return
     }
 
     Scaffold(
@@ -268,7 +298,8 @@ fun AdminTimetableScreen(
                 onNavigate          = onNavigate,
                 onAddClick          = { editingSlot = null; showAddDialog = true },
                 onFilterClick       = { showCourseFilter = true },
-                courseFilterActive  = selectedCourseFilter != null
+                courseFilterActive  = selectedCourseFilter != null,
+                onDragDropClick     = { showDragPanel = true }
             )
         },
         bottomBar = {
@@ -344,9 +375,9 @@ fun AdminTimetableScreen(
             if (allSlots.isNotEmpty()) {
                 item {
                     val barColor = when {
-                        loadPctInt >= 90 -> Color(0xFFEF5350)  
-                        loadPctInt >= 70 -> Color(0xFFFFA726)  
-                        else             -> Primary            
+                        loadPctInt >= 90 -> Color(0xFFEF5350)
+                        loadPctInt >= 70 -> Color(0xFFFFA726)
+                        else             -> Primary
                     }
                     Card(
                         colors   = CardDefaults.cardColors(containerColor = CardBg),
@@ -500,7 +531,8 @@ private fun TimetableTopBar(
     onNavigate:         (String) -> Unit,
     onAddClick:         () -> Unit,
     onFilterClick:      () -> Unit,
-    courseFilterActive: Boolean
+    courseFilterActive: Boolean,
+    onDragDropClick:    () -> Unit = {}
 ) {
     TopAppBar(
         title = {
@@ -517,6 +549,13 @@ private fun TimetableTopBar(
             }
         },
         actions = {
+            IconButton(onClick = onDragDropClick) {
+                Icon(
+                    imageVector        = Icons.Default.DragIndicator,
+                    contentDescription = "Drag & Drop Courses",
+                    tint               = Primary
+                )
+            }
             IconButton(onClick = onFilterClick) {
                 Icon(
                     imageVector        = Icons.Default.FilterList,
@@ -696,15 +735,16 @@ private fun TimetableSlotCard(
 
 @Composable
 private fun AddTimetableSlotScreen(
-    existingSlot  : TimetableSlot?,
-    currentSem    : String,
-    allRooms      : List<Room>,
-    existingSlots : List<TimetableSlot>,
-    courses       : List<Course>,
-    onBack        : () -> Unit,
-    onSave        : (TimetableSlot) -> Unit
+    existingSlot      : TimetableSlot?,
+    currentSem        : String,
+    allRooms          : List<Room>,
+    existingSlots     : List<TimetableSlot>,
+    courses           : List<Course>,
+    preselectedCourse : Course? = null,
+    onBack            : () -> Unit,
+    onSave            : (TimetableSlot) -> Unit
 ) {
-    var selectedCourse by remember { mutableStateOf(existingSlot?.course ?: courses.first()) }
+    var selectedCourse by remember { mutableStateOf(preselectedCourse ?: existingSlot?.course ?: courses.first()) }
     var selectedDate   by remember { mutableStateOf(existingSlot?.let { formatSlotDate(it) } ?: todayLabel()) }
     var startTime      by remember { mutableStateOf(existingSlot?.start ?: "09:00") }
     var endTime        by remember { mutableStateOf(existingSlot?.end   ?: "10:00") }
@@ -1254,4 +1294,213 @@ private fun generateTimeOptions(): List<String> {
         }
     }
     return options
+}
+
+data class AdminDragState(
+    val draggingCourse: Course? = null,
+    val offsetX: Float          = 0f,   // absolute finger X in root coords
+    val offsetY: Float          = 0f    // absolute finger Y in root coords
+)
+
+@Composable
+fun AdminCourseDragPanel(
+    courses:       List<Course>,
+    onDismiss:     () -> Unit,
+    onCourseDropped: (Course) -> Unit
+) {
+    var dragState by remember { mutableStateOf(AdminDragState()) }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.55f))
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }
+                ) { if (dragState.draggingCourse == null) onDismiss() }
+        )
+
+        // Panel
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+                .background(Color(0xFF0D1E30))
+                .padding(horizontal = 20.dp, vertical = 16.dp)
+        ) {
+            Box(
+                Modifier
+                    .size(width = 36.dp, height = 4.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF2A4A63))
+                    .align(Alignment.CenterHorizontally)
+            )
+            Spacer(Modifier.height(14.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.DragIndicator,
+                    contentDescription = null,
+                    tint     = SlotCardBg,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Drag a Course onto the Timetable",
+                    color      = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize   = 16.sp
+                )
+            }
+            Text(
+                "Long-press a course card, then drag it — release to schedule it",
+                color    = Color(0xFF7A9BB5),
+                fontSize = 11.sp,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier            = Modifier.heightIn(max = 380.dp)
+            ) {
+                items(courses) { course ->
+                    DraggableCourseChip(
+                        course   = course,
+                        onDrop   = { onCourseDropped(course) },
+                        onDragStart = { x, y ->
+                            dragState = AdminDragState(
+                                draggingCourse = course,
+                                offsetX = x,
+                                offsetY = y
+                            )
+                        },
+                        onDragMove = { dx, dy ->
+                            // dx/dy are per-frame deltas — accumulate onto current position
+                            dragState = dragState.copy(
+                                offsetX = dragState.offsetX + dx,
+                                offsetY = dragState.offsetY + dy
+                            )
+                        },
+                        onDragEnd = {
+                            if (dragState.draggingCourse != null) {
+                                onCourseDropped(dragState.draggingCourse!!)
+                            }
+                            dragState = AdminDragState()
+                        },
+                        onDragCancel = { dragState = AdminDragState() }
+                    )
+                }
+                item { Spacer(Modifier.height(24.dp)) }
+            }
+        }
+
+        if (dragState.draggingCourse != null) {
+            // Ghost card — rendered at absolute finger coordinates, centered on touch point
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .offset {
+                        IntOffset(
+                            // shift left by ~140dp so card center tracks the finger
+                            (dragState.offsetX - 140.dp.toPx()).roundToInt(),
+                            // shift up by ~28dp so card tracks just above the finger
+                            (dragState.offsetY - 28.dp.toPx()).roundToInt()
+                        )
+                    }
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(280.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(SlotCardBg.copy(alpha = 0.92f))
+                        .padding(12.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.DragIndicator, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Column {
+                            Text(dragState.draggingCourse!!.title,
+                                color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Text(dragState.draggingCourse!!.courseCode,
+                                color = Color.White.copy(0.7f), fontSize = 11.sp)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DraggableCourseChip(
+    course:       Course,
+    onDrop:       () -> Unit,
+    onDragStart:  (Float, Float) -> Unit,
+    onDragMove:   (Float, Float) -> Unit,
+    onDragEnd:    () -> Unit,
+    onDragCancel: () -> Unit
+) {
+    var cardPosition by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+    val scale by animateFloatAsState(
+        targetValue  = 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label        = "chip_scale"
+    )
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color(0xFF122030))
+            .onGloballyPositioned { coords ->
+                cardPosition = coords.positionInRoot()
+            }
+            .pointerInput(course.courseId) {
+                detectDragGesturesAfterLongPress(
+                    onDragStart = { offset ->
+                        onDragStart(
+                            cardPosition.x + offset.x,
+                            cardPosition.y + offset.y
+                        )
+                    },
+                    onDrag        = { _, dragAmount ->
+                        // Pass raw per-frame delta — caller accumulates
+                        onDragMove(dragAmount.x, dragAmount.y)
+                    },
+                    onDragEnd     = { onDragEnd() },
+                    onDragCancel  = { onDragCancel() }
+                )
+            }
+            .padding(horizontal = 14.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(SlotCardBg.copy(alpha = 0.3f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    course.courseCode.take(2),
+                    color      = SlotCardBg,
+                    fontWeight = FontWeight.Bold,
+                    fontSize   = 12.sp
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text(course.title,      color = Color.White,              fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                Text(course.courseCode, color = Color(0xFF7A9BB5),        fontSize   = 11.sp)
+                Text(course.semester,   color = SlotCardBg.copy(0.8f),   fontSize   = 10.sp)
+            }
+        }
+        Icon(Icons.Default.DragIndicator, null, tint = Color(0xFF2A4A63), modifier = Modifier.size(20.dp))
+    }
 }
