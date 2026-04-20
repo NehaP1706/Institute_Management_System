@@ -29,7 +29,6 @@ import com.ims.app.util.exportMonthlyAttendancePdf
 import java.text.SimpleDateFormat
 import java.util.*
 
-// ── Colour palette ────────────────────────────────────────────────────────────
 private val AmTeal    = Color(0xFF00A896)
 private val AmChipBg  = Color(0xFF0D2233)
 private val AmSurface = Color(0xFF0D1B2A)
@@ -39,19 +38,10 @@ private val AmAbsent  = Color(0xFFEF5350)
 private val AmLeave   = Color(0xFFFFA726)
 private val AmMuted   = Color(0xFF607D8B)
 
-/** Per-day attendance counts shown inside each calendar cell. */
 private data class DayStat(val present: Int, val absent: Int, val leave: Int) {
     val hasData: Boolean get() = present > 0 || absent > 0 || leave > 0
 }
 
-/**
- * Admin Monthly Attendance Screen.
- *
- * Fixes vs original:
- *  - Course chip opens [CoursePickerSheetContent] bottom sheet (same as daily screen).
- *  - Batch chip, Monthly chip, and top-bar filter icon all open a filter
- *    ModalBottomSheet with batch selector + Daily/Monthly view-mode toggle.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminMonthlyAttendanceScreen(
@@ -62,23 +52,17 @@ fun AdminMonthlyAttendanceScreen(
 ) {
     val context = LocalContext.current
 
-    // ── Filter state ──────────────────────────────────────────────────────────
     val courseOptions = StubRepository.courses
     val batchOptions  = listOf("BATCH A", "BATCH B", "BATCH C")
 
     var selectedCourse by remember { mutableStateOf(courseOptions.first()) }
     var selectedBatch  by remember { mutableStateOf(batchOptions.first()) }
-
-    // Course picker sheet
     var showCourseSheet by remember { mutableStateOf(false) }
     var pendingCourse   by remember { mutableStateOf(selectedCourse) }
     var courseSearch    by remember { mutableStateOf("") }
-
-    // Filter sheet (batch + view-mode)
     var showFilterSheet by remember { mutableStateOf(false) }
     var pendingBatch    by remember { mutableStateOf(selectedBatch) }
 
-    // ── Calendar navigation ───────────────────────────────────────────────────
     val today    = remember { Calendar.getInstance() }
     var calYear  by remember { mutableStateOf(today.get(Calendar.YEAR)) }
     var calMonth by remember { mutableStateOf(today.get(Calendar.MONTH)) }
@@ -88,7 +72,6 @@ fun AdminMonthlyAttendanceScreen(
             .format(Calendar.getInstance().apply { set(calYear, calMonth, 1) }.time)
     }
 
-    // ── Records for the selected course + month ───────────────────────────────
     val monthRecords by remember(selectedCourse, calYear, calMonth) {
         derivedStateOf {
             StubRepository.getAttendanceForCourse(selectedCourse.courseId).filter { r ->
@@ -98,7 +81,6 @@ fun AdminMonthlyAttendanceScreen(
         }
     }
 
-    // ── Aggregate stats — summed directly from per-day cell data ───────────
     val rawPresent  = monthRecords.count { it.status == AttendanceStatus.PRESENT        }
     val rawAbsent   = monthRecords.count { it.status == AttendanceStatus.ABSENT         }
     val rawLeave    = monthRecords.count { it.status == AttendanceStatus.APPROVED_LEAVE }
@@ -107,7 +89,6 @@ fun AdminMonthlyAttendanceScreen(
     val statAbsent  = if (hasAny) "$rawAbsent"  else "–"
     val statLeave   = if (hasAny) "$rawLeave"   else "–"
 
-    // ── Per-day stats map ─────────────────────────────────────────────────────
     val dayStats: Map<Int, DayStat> by remember(monthRecords) {
         derivedStateOf {
             buildMap {
@@ -125,7 +106,6 @@ fun AdminMonthlyAttendanceScreen(
         }
     }
 
-    // ── Grid days (Sun-start, bleeds prev/next month padding) ────────────────
     val gridDays: List<Pair<Int, Boolean>> = remember(calYear, calMonth) {
         val cal         = Calendar.getInstance().apply { set(calYear, calMonth, 1) }
         val firstDow    = cal.get(Calendar.DAY_OF_WEEK) - 1
@@ -143,7 +123,6 @@ fun AdminMonthlyAttendanceScreen(
     val todayDay    = today.get(Calendar.DAY_OF_MONTH)
     val isThisMonth = calYear == today.get(Calendar.YEAR) && calMonth == today.get(Calendar.MONTH)
 
-    // ── PDF export ────────────────────────────────────────────────────────────
     var isExporting by remember { mutableStateOf(false) }
     val allMonthRecords by remember(calYear, calMonth) {
         derivedStateOf {
@@ -154,7 +133,6 @@ fun AdminMonthlyAttendanceScreen(
         }
     }
 
-    // ── Course picker bottom sheet ────────────────────────────────────────────
     val courseSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     if (showCourseSheet) {
         ModalBottomSheet(
@@ -184,7 +162,6 @@ fun AdminMonthlyAttendanceScreen(
         }
     }
 
-    // ── Filter bottom sheet (batch + view-mode) ───────────────────────────────
     val filterSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     if (showFilterSheet) {
         ModalBottomSheet(
@@ -264,7 +241,6 @@ fun AdminMonthlyAttendanceScreen(
         }
     }
 
-    // ── Scaffold ──────────────────────────────────────────────────────────────
     Scaffold(
         topBar = {
             TopAppBar(
@@ -277,7 +253,6 @@ fun AdminMonthlyAttendanceScreen(
                     Text("Attendance — Admin", color = OnBackground, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 },
                 actions = {
-                    // FIX: was a non-clickable Icon; now an IconButton opening the filter sheet
                     IconButton(onClick = { pendingBatch = selectedBatch; showFilterSheet = true }) {
                         Icon(Icons.Default.FilterList, "Filters", tint = OnBackground)
                     }
@@ -298,11 +273,9 @@ fun AdminMonthlyAttendanceScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // ── ① Course chip + filter pills ──────────────────────────────────
             item {
                 Spacer(Modifier.height(4.dp))
 
-                // FIX: opens CoursePickerSheetContent bottom sheet
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -329,14 +302,12 @@ fun AdminMonthlyAttendanceScreen(
 
                 Spacer(Modifier.height(8.dp))
 
-                // FIX: Batch + Monthly chips both open the filter sheet
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     AmPill(label = selectedBatch, onClick = { pendingBatch = selectedBatch; showFilterSheet = true })
                     AmPill(label = "Monthly",     onClick = { pendingBatch = selectedBatch; showFilterSheet = true })
                 }
             }
 
-            // ── ② Month navigator ─────────────────────────────────────────────
             item {
                 Row(
                     modifier              = Modifier.fillMaxWidth(),
@@ -353,7 +324,6 @@ fun AdminMonthlyAttendanceScreen(
                 }
             }
 
-            // ── ③ Aggregate stat bubbles ──────────────────────────────────────
             item {
                 Row(
                     modifier              = Modifier.fillMaxWidth(),
@@ -367,7 +337,6 @@ fun AdminMonthlyAttendanceScreen(
                 }
             }
 
-            // ── ④ Calendar grid ───────────────────────────────────────────────
             item {
                 AmCalendarGrid(
                     gridDays = gridDays,
@@ -376,7 +345,6 @@ fun AdminMonthlyAttendanceScreen(
                 )
             }
 
-            // ── ⑤ Export Full Report ──────────────────────────────────────────
             item {
                 Button(
                     onClick = {
@@ -411,7 +379,6 @@ fun AdminMonthlyAttendanceScreen(
     }
 }
 
-// ── Filter pill chip ──────────────────────────────────────────────────────────
 @Composable
 private fun AmPill(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Box(
@@ -430,7 +397,6 @@ private fun AmPill(label: String, onClick: () -> Unit, modifier: Modifier = Modi
     }
 }
 
-// ── Stat bubble ───────────────────────────────────────────────────────────────
 @Composable
 private fun AmStatBubble(label: String, value: String, color: Color) {
     Box(
@@ -444,7 +410,6 @@ private fun AmStatBubble(label: String, value: String, color: Color) {
     }
 }
 
-// ── Calendar grid ─────────────────────────────────────────────────────────────
 @Composable
 private fun AmCalendarGrid(
     gridDays: List<Pair<Int, Boolean>>,
@@ -485,7 +450,6 @@ private fun AmCalendarGrid(
     }
 }
 
-// ── Single day cell ───────────────────────────────────────────────────────────
 @Composable
 private fun AmCalDayCell(day: Int, stat: DayStat?, isToday: Boolean, isCurrent: Boolean) {
     val hasData = stat?.hasData == true

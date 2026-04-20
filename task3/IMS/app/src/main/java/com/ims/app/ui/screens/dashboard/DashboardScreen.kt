@@ -32,7 +32,6 @@ import com.ims.app.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
 
-// ── Local colours ─────────────────────────────────────────────────────────────
 private val BannerGradientStart = Color(0xFF00A896)
 private val BannerGradientEnd   = Color(0xFF006B62)
 private val StatCardBg          = Color(0xFF0D2233)
@@ -47,7 +46,6 @@ private val ModuleActiveBg      = Color(0xFF00897B)
 private val ModuleSoonBg        = Color(0xFF0D2233)
 private val DividerColor        = Color(0xFF1E3A4A)
 
-// ── Shared menu data model ────────────────────────────────────────────────────
 private data class AdminMenuItem(
     val label: String,
     val subtitle: String,
@@ -57,7 +55,6 @@ private data class AdminMenuItem(
     val isActive: Boolean = false
 )
 
-// ── Main Dashboard Screen ─────────────────────────────────────────────────────
 @Composable
 fun DashboardScreen(
     viewModel: IMSViewModel,
@@ -113,7 +110,6 @@ fun DashboardScreen(
         ) {
             item { Spacer(Modifier.height(4.dp)) }
 
-            // ── Global search bar ────────────────────────────────────────────
             item {
                 DashboardSearchBar(
                     query        = searchQuery,
@@ -138,7 +134,6 @@ fun DashboardScreen(
                 )
             }
 
-            // Profile banner — role-specific
             item {
                 if (isAdmin) {
                     AdminProfileBanner(name = name, role = role, email = email)
@@ -147,7 +142,6 @@ fun DashboardScreen(
                 }
             }
 
-            // ── Student body ────────────────────────────────────────────────
             if (isStudent) {
                 item {
                     val perCoursePercents = viewModel.allCourses
@@ -182,7 +176,6 @@ fun DashboardScreen(
                 }
             }
 
-            // ── Admin body ──────────────────────────────────────────────────
             if (isAdmin) {
                 item {
                     AdminStatCards(
@@ -196,7 +189,6 @@ fun DashboardScreen(
         }
     }
 
-    // Role-appropriate slide-out menu
     if (showMenu) {
         when {
             isAdmin   -> AdminMenuOverlay(
@@ -210,13 +202,11 @@ fun DashboardScreen(
         }
     }
 
-    // Language / preferences dialog (student only)
     if (showLanguageDialog) {
         LanguagePreferencesDialog(onDismiss = { showLanguageDialog = false })
     }
 }
 
-// ── Search bar ────────────────────────────────────────────────────────────────
 private val SearchBg      = Color(0xFF0D2233)
 private val SearchDivider = Color(0xFF1E3A4A)
 
@@ -246,7 +236,6 @@ private fun DashboardSearchBar(
     onResultClick: (SearchResult) -> Unit
 ) {
     Column {
-        // ── Input row ─────────────────────────────────────────────────────────
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -302,7 +291,6 @@ private fun DashboardSearchBar(
             }
         }
 
-        // ── Results dropdown ──────────────────────────────────────────────────
         if (active && results.isNotEmpty()) {
             Spacer(Modifier.height(2.dp))
             Column(
@@ -327,7 +315,6 @@ private fun DashboardSearchBar(
                             .padding(horizontal = 14.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Icon badge
                         Box(
                             modifier = Modifier
                                 .size(36.dp)
@@ -343,7 +330,6 @@ private fun DashboardSearchBar(
                             )
                         }
                         Spacer(Modifier.width(12.dp))
-                        // Labels
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 result.label,
@@ -358,7 +344,6 @@ private fun DashboardSearchBar(
                             )
                         }
                         Spacer(Modifier.width(8.dp))
-                        // Type pill
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
@@ -376,7 +361,6 @@ private fun DashboardSearchBar(
                     }
                 }
 
-                // Empty hint when query has no matches
                 if (results.isEmpty()) {
                     Text(
                         "No results for \"$query\"",
@@ -388,7 +372,6 @@ private fun DashboardSearchBar(
             }
         }
 
-        // ── Empty state ───────────────────────────────────────────────────────
         if (active && results.isEmpty() && query.isNotBlank()) {
             Spacer(Modifier.height(2.dp))
             Box(
@@ -409,7 +392,6 @@ private fun DashboardSearchBar(
     }
 }
 
-// ── Top App Bar ───────────────────────────────────────────────────────────────
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DashboardTopBar(
@@ -435,7 +417,6 @@ private fun DashboardTopBar(
     )
 }
 
-// ── Admin Profile Banner (centered layout) ────────────────────────────────────
 @Composable
 private fun AdminProfileBanner(name: String, role: String, email: String) {
     val lastActive = remember { SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date()) }
@@ -451,7 +432,6 @@ private fun AdminProfileBanner(name: String, role: String, email: String) {
             modifier            = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Centered avatar with online dot
             Box(contentAlignment = Alignment.BottomEnd) {
                 Box(
                     modifier         = Modifier
@@ -554,7 +534,6 @@ private fun AdminProfileBanner(name: String, role: String, email: String) {
     }
 }
 
-// ── Profile Banner ────────────────────────────────────────────────────────────
 @Composable
 private fun ProfileBanner(name: String, role: String, email: String) {
     val lastActive = remember { SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date()) }
@@ -568,7 +547,6 @@ private fun ProfileBanner(name: String, role: String, email: String) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
 
-            // Avatar with online dot
             Box(contentAlignment = Alignment.BottomEnd) {
                 Box(
                     modifier         = Modifier
@@ -579,7 +557,6 @@ private fun ProfileBanner(name: String, role: String, email: String) {
                 ) {
                     Icon(Icons.Default.Person, null, tint = OnBanner.copy(alpha = 0.85f), modifier = Modifier.size(34.dp))
                 }
-                // Green dot with background ring so it's visible on any gradient
                 Box(
                     modifier = Modifier
                         .size(14.dp)
@@ -594,7 +571,6 @@ private fun ProfileBanner(name: String, role: String, email: String) {
             Spacer(Modifier.width(14.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                // Name + role chip on same row
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(name, color = OnBanner, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                     Spacer(Modifier.width(8.dp))
@@ -626,7 +602,6 @@ private fun ProfileBanner(name: String, role: String, email: String) {
     }
 }
 
-// ── Student Stat Row ──────────────────────────────────────────────────────────
 @Composable
 private fun StudentStatRow(
     attendancePercent: Float,
@@ -681,7 +656,6 @@ private fun StatCell(value: String, label: String, valueColor: Color) {
     }
 }
 
-// ── Student Module Grid ───────────────────────────────────────────────────────
 private data class ModuleItem(
     val label: String,
     val icon: ImageVector,
@@ -755,7 +729,6 @@ private fun ModuleCard(module: ModuleItem, modifier: Modifier = Modifier, onNavi
     }
 }
 
-// ── Student Bottom Nav Bar ────────────────────────────────────────────────────
 @Composable
 private fun StudentBottomNavBar(currentRoute: String, onNavigate: (String) -> Unit) {
     val items = listOf(
@@ -783,7 +756,6 @@ private fun StudentBottomNavBar(currentRoute: String, onNavigate: (String) -> Un
     }
 }
 
-// ── Admin Stat Cards (centered, compact) ──────────────────────────────────────
 private data class AdminStat(
     val label:    String,
     val value:    String,
@@ -850,7 +822,6 @@ private fun AdminStatCards(students: String, pendingApprovals: String) {
     }
 }
 
-// ── Language Preferences Dialog ───────────────────────────────────────────────
 private data class LanguageOption(val code: String, val label: String, val region: String)
 
 @Composable
@@ -1052,7 +1023,6 @@ fun LanguagePreferencesDialog(onDismiss: () -> Unit) {
     }
 }
 
-// ── Admin Menu Overlay ────────────────────────────────────────────────────────
 @Composable
 fun AdminMenuOverlay(onNavigate: (String) -> Unit, onDismiss: () -> Unit) {
     val menuItems = listOf(
@@ -1066,7 +1036,6 @@ fun AdminMenuOverlay(onNavigate: (String) -> Unit, onDismiss: () -> Unit) {
     MenuOverlayScaffold("Admin Menu", "Management Modules", menuItems, onNavigate, onDismiss)
 }
 
-// ── Student Menu Overlay ──────────────────────────────────────────────────────
 @Composable
 fun StudentMenuOverlay(onNavigate: (String) -> Unit, onDismiss: () -> Unit) {
     val menuItems = listOf(
@@ -1078,7 +1047,6 @@ fun StudentMenuOverlay(onNavigate: (String) -> Unit, onDismiss: () -> Unit) {
     MenuOverlayScaffold("Student Menu", "Academic Modules", menuItems, onNavigate, onDismiss)
 }
 
-// ── Shared Menu Overlay Scaffold ──────────────────────────────────────────────
 @Composable
 private fun MenuOverlayScaffold(
     title: String,

@@ -36,7 +36,6 @@ import java.util.*
 
 private enum class ViewMode { DAILY, MONTHLY }
 
-// Course icon helper
 private fun iconForCourse(courseCode: String): ImageVector = when {
     courseCode.startsWith("CS1")  -> Icons.Default.Terminal
     courseCode.startsWith("CS2")  -> Icons.Default.Psychology
@@ -47,12 +46,6 @@ private fun iconForCourse(courseCode: String): ImageVector = when {
     else                          -> Icons.Default.Book
 }
 
-/**
- * Student read-only Attendance screen – Daily view.
- *
- * PDF icon → exports a daily attendance report for ALL courses, filtered
- * by the current From/To date range (if set).
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AttendanceScreen(
@@ -62,24 +55,18 @@ fun AttendanceScreen(
 ) {
     val context = LocalContext.current
 
-    // Filter state
     var selectedCourse        by remember { mutableStateOf(viewModel.allCourses.firstOrNull()) }
     var showCourseSheet       by remember { mutableStateOf(false) }
     var pendingCourse         by remember { mutableStateOf(selectedCourse) }
     var sheetSearch           by remember { mutableStateOf("") }
-
     var viewMode              by remember { mutableStateOf(ViewMode.DAILY) }
     var viewModeMenuExpanded  by remember { mutableStateOf(false) }
-
     var fromDateMillis        by remember { mutableStateOf<Long?>(null) }
     var toDateMillis          by remember { mutableStateOf<Long?>(null) }
     var showFromPicker        by remember { mutableStateOf(false) }
     var showToPicker          by remember { mutableStateOf(false) }
+    var isExporting           by remember { mutableStateOf(false) }
 
-    // Export-progress flag (keeps icon from being tapped twice)
-    var isExporting by remember { mutableStateOf(false) }
-
-    // Monthly mode – hand off entirely
     if (viewMode == ViewMode.MONTHLY) {
         MonthlyAttendanceScreen(
             viewModel       = viewModel,
@@ -90,7 +77,6 @@ fun AttendanceScreen(
         return
     }
 
-    //  Derived data (ALL courses, date-filtered)
     val allRecordsForExport by remember(fromDateMillis, toDateMillis) {
         derivedStateOf {
             viewModel.getAttendanceRecords().filter { r ->
@@ -102,7 +88,6 @@ fun AttendanceScreen(
         }
     }
 
-    // Records shown on screen (filtered by selected course too)
     val baseRecords by remember(selectedCourse) {
         derivedStateOf {
             selectedCourse?.let { viewModel.getAttendanceForCourse(it.courseId) }
@@ -125,7 +110,6 @@ fun AttendanceScreen(
     val totalMarked  = displayRecords.count { it.status != AttendanceStatus.UNMARKED }
     val percent      = if (totalMarked > 0) presentCount * 100f / totalMarked else 0f
 
-    //  Date picker states
     val fromPickerState = rememberDatePickerState(
         initialSelectedDateMillis = fromDateMillis ?: System.currentTimeMillis()
     )
@@ -133,7 +117,6 @@ fun AttendanceScreen(
         initialSelectedDateMillis = toDateMillis ?: System.currentTimeMillis()
     )
 
-    //  Course bottom sheet
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     if (showCourseSheet) {
         ModalBottomSheet(
@@ -163,7 +146,6 @@ fun AttendanceScreen(
         }
     }
 
-    //  Date picker dialogs
     if (showFromPicker) {
         DatePickerDialog(
             onDismissRequest = { showFromPicker = false },
@@ -204,7 +186,6 @@ fun AttendanceScreen(
         }
     }
 
-    //  Scaffold
     Scaffold(
         topBar = {
             TopAppBar(
@@ -224,7 +205,6 @@ fun AttendanceScreen(
                     )
                 },
                 actions = {
-                    // PDF export button
                     IconButton(
                         onClick = {
                             if (isExporting) return@IconButton
@@ -276,15 +256,12 @@ fun AttendanceScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-
-            //  Filter row
             item {
                 Spacer(Modifier.height(4.dp))
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier              = Modifier.fillMaxWidth()
                 ) {
-                    // 1. Course picker
                     FilterChipButton(
                         label    = selectedCourse?.courseCode ?: "Course",
                         modifier = Modifier.weight(1f),
@@ -295,7 +272,6 @@ fun AttendanceScreen(
                         }
                     )
 
-                    // 2. Daily / Monthly toggle
                     Box(modifier = Modifier.weight(0.9f)) {
                         FilterChipButton(
                             label    = if (viewMode == ViewMode.DAILY) "Daily" else "Monthly",
@@ -327,7 +303,6 @@ fun AttendanceScreen(
                         }
                     }
 
-                    // 3. From date
                     FilterDateButton(
                         label    = fromDateMillis?.let { shortDate(it) } ?: "From",
                         modifier = Modifier.weight(1f),
@@ -335,7 +310,6 @@ fun AttendanceScreen(
                         onClick  = { showFromPicker = true }
                     )
 
-                    // 4. To date
                     FilterDateButton(
                         label    = toDateMillis?.let { shortDate(it) } ?: "To",
                         modifier = Modifier.weight(0.8f),
@@ -344,7 +318,6 @@ fun AttendanceScreen(
                     )
                 }
 
-                // Active date-range indicator + clear
                 if (fromDateMillis != null || toDateMillis != null) {
                     Spacer(Modifier.height(6.dp))
                     Row(
@@ -371,7 +344,6 @@ fun AttendanceScreen(
                 }
             }
 
-            //  Hero summary card
             item {
                 selectedCourse?.let { course ->
                     AttendanceSummaryHeroCard(
@@ -383,7 +355,6 @@ fun AttendanceScreen(
                 }
             }
 
-            // Section header
             item {
                 Text(
                     "ATTENDANCE LOG",
@@ -395,7 +366,6 @@ fun AttendanceScreen(
                 )
             }
 
-            // Log rows
             if (displayRecords.isEmpty()) {
                 item {
                     Text(
@@ -414,7 +384,6 @@ fun AttendanceScreen(
     }
 }
 
-//  Figma Course Picker Bottom Sheet
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun CoursePickerSheetContent(
@@ -432,7 +401,6 @@ internal fun CoursePickerSheetContent(
             .fillMaxWidth()
             .navigationBarsPadding()
     ) {
-        // Header
         Row(
             modifier          = Modifier
                 .fillMaxWidth()
@@ -462,7 +430,6 @@ internal fun CoursePickerSheetContent(
             }
         }
 
-        // Search field
         OutlinedTextField(
             value          = searchQuery,
             onValueChange  = onSearchChange,
@@ -486,7 +453,6 @@ internal fun CoursePickerSheetContent(
 
         Spacer(Modifier.height(12.dp))
 
-        // Course list
         LazyColumn(
             modifier            = Modifier
                 .fillMaxWidth()
@@ -505,7 +471,6 @@ internal fun CoursePickerSheetContent(
 
         Spacer(Modifier.height(16.dp))
 
-        // Apply button
         Button(
             onClick  = onApply,
             modifier = Modifier
@@ -524,7 +489,6 @@ internal fun CoursePickerSheetContent(
     }
 }
 
-//  Single row inside the sheet
 @Composable
 private fun CoursePickerRow(course: Course, isSelected: Boolean, onClick: () -> Unit) {
     val rowBg     = if (isSelected) Primary  else SurfaceVar
@@ -568,7 +532,6 @@ private fun CoursePickerRow(course: Course, isSelected: Boolean, onClick: () -> 
     }
 }
 
-//  Hero summary card
 @Composable
 private fun AttendanceSummaryHeroCard(
     courseTitle:  String,
@@ -647,7 +610,6 @@ private fun CircularPercentBadge(percent: Float, ringColor: Color) {
     }
 }
 
-// Log row
 @Composable
 private fun AttendanceLogRow(record: AttendanceRecord) {
     val formattedDate = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(record.date)
@@ -700,7 +662,6 @@ private fun AttendanceLogRow(record: AttendanceRecord) {
     }
 }
 
-// Shared filter chip components
 @Composable
 internal fun FilterChipButton(
     label:    String,
@@ -752,7 +713,6 @@ internal fun FilterDateButton(
     }
 }
 
-//  DatePicker colours
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun attendanceDatePickerColors() = DatePickerDefaults.colors(

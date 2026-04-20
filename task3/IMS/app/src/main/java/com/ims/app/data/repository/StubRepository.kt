@@ -10,8 +10,6 @@ import java.util.Date
  */
 object StubRepository {
 
-    // ── Roles & Permissions ──────────────────────────────────────────────────
-
     private val adminRole = Role(
         roleId = "r1", roleName = "Admin",
         permissions = listOf(
@@ -35,8 +33,6 @@ object StubRepository {
         )
     )
 
-    // ── Users ────────────────────────────────────────────────────────────────
-
     private val adminUser = User(
         userId = "u1", passwordHash = "admin123",
         role = listOf(adminRole), isActive = true,
@@ -58,8 +54,6 @@ object StubRepository {
         advisor= emptyList(), coadvisor= emptyList()
     )
 
-    // ── Courses ──────────────────────────────────────────────────────────────
-
     val courses = listOf(
         Course("c1","CS101","Advanced Algorithms",4, CourseType.H1,
             listOf(ProgramType.CSE),"Graphs, DP, etc.", "Dr. Ramesh","Sem 5"),
@@ -73,8 +67,6 @@ object StubRepository {
             listOf(ProgramType.CSE, ProgramType.ECE),"ML Fundamentals", "Dr. Ramesh","Sem 6"),
     )
 
-    // ── Rooms ────────────────────────────────────────────────────────────────
-
     val room101 = Room("rm1","LH-101",120, RoomType.Room100C,"Lecture Block")
     val room201 = Room("rm2","LH-201",60, RoomType.Room100C,"Lecture Block")
     val lab1    = Room("rm3","CS-Lab-1",40, RoomType.ComputerLab,"Lab Block")
@@ -82,8 +74,6 @@ object StubRepository {
     val sciLab  = Room("rm5","Sci-Lab-1",30, RoomType.ScienceLab,"Science Block")
 
     val allRooms: List<Room> get() = listOf(room101, room201, lab1, lab2, sciLab)
-
-    // ── Timetable Slots ──────────────────────────────────────────────────────
 
     val timetableSlots: MutableList<TimetableSlot> = mutableListOf(
         TimetableSlot("ts1", courses[0], DayEnum.MONDAY,    "09:00","10:00", room101, "Sem 5"),
@@ -99,8 +89,6 @@ object StubRepository {
         timetableSlots.add(slot)
     }
 
-    // ── Attendance Records ────────────────────────────────────────────────────
-
     val attendanceRecords: MutableList<AttendanceRecord> = mutableListOf(
         AttendanceRecord("a1", sampleStudent, courses[0], Date(), AttendanceStatus.PRESENT, ""),
         AttendanceRecord("a2", sampleStudent, courses[1], Date(), AttendanceStatus.ABSENT, ""),
@@ -109,14 +97,10 @@ object StubRepository {
         AttendanceRecord("a5", sampleStudent, courses[0], Date(), AttendanceStatus.PRESENT, ""),
     )
 
-    // ── Dashboard Stats ───────────────────────────────────────────────────────
-
     val dashboardStats = mapOf(
         "totalStudents" to 12482,
         "totalCourses" to 28
     )
-
-    // ── Auth ──────────────────────────────────────────────────────────────────
 
     fun login(credentials: String): User? {
         val (username, password) = credentials.split(":").let {
@@ -136,8 +120,6 @@ object StubRepository {
     }
 
     fun getUserRole(user: User): String = user.role.firstOrNull()?.roleName ?: "Unknown"
-
-    // ── Attendance helpers ────────────────────────────────────────────────────
 
     fun getAttendanceForCourse(courseId: String): List<AttendanceRecord> =
         attendanceRecords.filter { it.course.courseId == courseId }
@@ -159,8 +141,6 @@ object StubRepository {
         }
         attendanceRecords.add(record)
     }
-
-    // ── Personal timetable slots (student-created) ────────────────────────────
 
     val personalTimetableSlots: MutableList<PersonalTimetableSlot> = mutableListOf()
 

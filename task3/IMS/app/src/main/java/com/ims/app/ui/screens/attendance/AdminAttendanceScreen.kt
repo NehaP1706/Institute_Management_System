@@ -41,7 +41,6 @@ import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.*
 
-// ── Local colours ─────────────────────────────────────────────────────────────
 private val TealChip      = Color(0xFF00A896)
 private val ChipBg        = Color(0xFF0D2233)
 private val TableHeaderBg = Color(0xFF0A1929)
@@ -54,7 +53,6 @@ private val StatCircleBg  = Color(0xFF0D2233)
 private val RemarksBg     = Color(0xFF111E2B)
 private val PanelBg       = Color(0xFF0A1929)
 
-// ── Status display helpers ────────────────────────────────────────────────────
 private fun AttendanceStatus.displayLabel(): String = when (this) {
     AttendanceStatus.PRESENT        -> "PRESENT"
     AttendanceStatus.ABSENT         -> "ABSENT"
@@ -69,7 +67,6 @@ private fun AttendanceStatus.statusColor(): Color = when (this) {
     AttendanceStatus.UNMARKED       -> UnmarkedColor
 }
 
-// ── PDF export (Android PdfDocument API) ──────────────────────────────────────
 private fun exportAttendancePdf(
     context: Context,
     courseName: String,
@@ -153,7 +150,6 @@ private fun exportAttendancePdf(
     )
 }
 
-// ── Screen ────────────────────────────────────────────────────────────────────
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminAttendanceScreen(
@@ -163,13 +159,11 @@ fun AdminAttendanceScreen(
 ) {
     val context = LocalContext.current
 
-    // ── Course state ──────────────────────────────────────────────────────────
     var selectedCourse  by remember { mutableStateOf(StubRepository.courses.first()) }
     var showCourseSheet by remember { mutableStateOf(false) }
     var pendingCourse   by remember { mutableStateOf(selectedCourse) }
     var sheetSearch     by remember { mutableStateOf("") }
 
-    // ── Filter state ──────────────────────────────────────────────────────────
     val batchOptions      = listOf("BATCH A", "BATCH B", "BATCH C")
     val freqOptions       = listOf("DAILY", "MONTHLY")
     var selectedBatch     by remember { mutableStateOf(batchOptions.first()) }
@@ -177,8 +171,6 @@ fun AdminAttendanceScreen(
     var showBatchDropdown by remember { mutableStateOf(false) }
     var showFreqDropdown  by remember { mutableStateOf(false) }
 
-    // ── Day filter — single day selection like the timetable screen ───────────
-    // Derives today's DayEnum from the calendar so the default is always "today"
     val todayDayEnum = remember {
         val dow = Calendar.getInstance().get(Calendar.DAY_OF_WEEK)
         when (dow) {
@@ -193,13 +185,12 @@ fun AdminAttendanceScreen(
     }
     var selectedDay by remember { mutableStateOf(todayDayEnum) }
 
-    // ── Date state ────────────────────────────────────────────────────────────
     var selectedDate   by remember { mutableStateOf(Calendar.getInstance()) }
     var showDatePicker by remember { mutableStateOf(false) }
     val dateFormatter  = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
     val dateLabel      = dateFormatter.format(selectedDate.time)
+    var showCsvDialog by remember { mutableStateOf(false) }
 
-    // Show Android DatePickerDialog when requested
     if (showDatePicker) {
         val snapshot = selectedDate
         android.app.DatePickerDialog(
@@ -215,13 +206,9 @@ fun AdminAttendanceScreen(
             dlg.setOnDismissListener { showDatePicker = false }
             dlg.show()
         }
-        // Reset flag so recomposition doesn't re-open it
         showDatePicker = false
     }
 
-    // ── Attendance status map  "studentId_courseId" ───────────────────────────
-    // FIX: recompute whenever selectedCourse or selectedDate changes so the
-    // displayed status actually reflects the chosen date, not a stale snapshot.
     val dateKeyFmt = remember { SimpleDateFormat("yyyyMMdd", Locale.getDefault()) }
     val statusMap  = remember { mutableStateMapOf<String, AttendanceStatus>() }
     val remarksMap = remember { mutableStateMapOf<String, String>() }
@@ -242,14 +229,10 @@ fun AdminAttendanceScreen(
             }
     }
 
-    // ── Bottom-panel state ────────────────────────────────────────────────────
     var detailStudent: Student? by remember { mutableStateOf(null) }
     var detailRemark            by remember { mutableStateOf("") }
     var saved                   by remember { mutableStateOf(false) }
 
-    // ── Monthly view gate ─────────────────────────────────────────────────────
-    // All remember() calls above are unconditional — this early return is safe
-    // because it comes after every state declaration in the function.
     if (selectedFreq == "MONTHLY") {
         AdminMonthlyAttendanceScreen(
             viewModel       = viewModel,
@@ -260,9 +243,6 @@ fun AdminAttendanceScreen(
         return
     }
 
-    // ── Student list — filtered by course, batch, AND selected day ───────────
-    // Records are matched to the selected date by comparing yyyyMMdd strings
-    // so only records actually saved for that date appear.
     val studentList: List<Student> = remember(selectedCourse, selectedBatch, selectedDate.timeInMillis) {
         val selectedDateKey = dateKeyFmt.format(selectedDate.time)
 
@@ -274,8 +254,6 @@ fun AdminAttendanceScreen(
             .map { it.student }
             .distinctBy { it.studentId }
             .ifEmpty {
-                // The stub seeds all records with Date() (today), so on today's
-                // date the sample student will always appear as a fallback.
                 val todayKey = dateKeyFmt.format(Date())
                 if (selectedDateKey == todayKey) listOf(StubRepository.sampleStudent)
                 else emptyList()
@@ -287,7 +265,6 @@ fun AdminAttendanceScreen(
         }
     }
 
-    // ── Derived stats ─────────────────────────────────────────────────────────
     val total   = studentList.size
     val present = studentList.count { s: Student ->
         statusMap[s.studentId + "_" + selectedCourse.courseId] == AttendanceStatus.PRESENT
@@ -299,7 +276,6 @@ fun AdminAttendanceScreen(
         statusMap[s.studentId + "_" + selectedCourse.courseId] == AttendanceStatus.APPROVED_LEAVE
     }
 
-    // ── Course picker bottom sheet ────────────────────────────────────────────
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     if (showCourseSheet) {
         ModalBottomSheet(
@@ -330,7 +306,6 @@ fun AdminAttendanceScreen(
         }
     }
 
-    // ── Helper to build + persist an AttendanceRecord ─────────────────────────
     fun markAndPersist(student: Student, status: AttendanceStatus) {
         val key = student.studentId + "_" + selectedCourse.courseId
         statusMap[key] = status
@@ -341,12 +316,39 @@ fun AdminAttendanceScreen(
                 course       = selectedCourse,
                 date         = selectedDate.time,
                 status       = status,
-                remarks      = remarksMap[key] ?: ""   // preserve any existing remark
+                remarks      = remarksMap[key] ?: ""   
             )
         )
     }
 
-    // ── UI ────────────────────────────────────────────────────────────────────
+    if (showCsvDialog) {
+        CsvUploadDialog(
+            courses        = StubRepository.courses,
+            selectedCourse = selectedCourse,
+            onDismiss      = { showCsvDialog = false },
+            onConfirm      = { studentName, course ->
+                val matchedStudent = StubRepository.sampleStudent.takeIf {
+                    StubRepository.getUserDisplayName(it.user)
+                        .contains(studentName.trim(), ignoreCase = true)
+                } ?: StubRepository.sampleStudent
+
+                val key = matchedStudent.studentId + "_" + course.courseId
+                statusMap[key] = AttendanceStatus.PRESENT
+                viewModel.markAttendance(
+                    AttendanceRecord(
+                        attendanceId = key,
+                        student      = matchedStudent,
+                        course       = course,
+                        date         = selectedDate.time,
+                        status       = AttendanceStatus.PRESENT,
+                        remarks      = "Via CSV upload"
+                    )
+                )
+                showCsvDialog = false
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             AttendanceTopBar(
@@ -371,7 +373,6 @@ fun AdminAttendanceScreen(
         containerColor = Background
     ) { padding ->
 
-        // Root box: clicking anywhere outside the panel dismisses it
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -382,7 +383,6 @@ fun AdminAttendanceScreen(
                 ) { detailStudent = null }
         ) {
 
-            // ── Scrollable content ────────────────────────────────────────────
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -390,7 +390,6 @@ fun AdminAttendanceScreen(
             ) {
                 Spacer(Modifier.height(12.dp))
 
-                // Course selector chip
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -423,10 +422,8 @@ fun AdminAttendanceScreen(
 
                 Spacer(Modifier.height(10.dp))
 
-                // Filter pills row
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
 
-                    // Batch dropdown
                     Box {
                         FilterPill(
                             label   = selectedBatch,
@@ -456,7 +453,6 @@ fun AdminAttendanceScreen(
                         }
                     }
 
-                    // Frequency dropdown
                     Box {
                         FilterPill(
                             label   = selectedFreq,
@@ -478,7 +474,7 @@ fun AdminAttendanceScreen(
                                         )
                                     },
                                     onClick = {
-                                        selectedFreq     = option   // "MONTHLY" triggers gate above
+                                        selectedFreq     = option   
                                         showFreqDropdown = false
                                     }
                                 )
@@ -486,17 +482,21 @@ fun AdminAttendanceScreen(
                         }
                     }
 
-                    // Date picker pill — opens Android DatePickerDialog
                     FilterPill(
                         label   = dateLabel,
                         icon    = Icons.Default.CalendarToday,
                         onClick = { showDatePicker = true }
                     )
+
+                    FilterPill(
+                        label   = "Upload CSV",
+                        icon    = Icons.Default.UploadFile,
+                        onClick = { showCsvDialog = true }
+                    )
                 }
 
                 Spacer(Modifier.height(14.dp))
 
-                // Stat circles
                 Row(
                     modifier              = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
@@ -509,7 +509,6 @@ fun AdminAttendanceScreen(
 
                 Spacer(Modifier.height(14.dp))
 
-                // Table header
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -529,7 +528,6 @@ fun AdminAttendanceScreen(
                         modifier = Modifier.width(80.dp))
                 }
 
-                // Student list
                 LazyColumn(
                     modifier            = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(1.dp)
@@ -577,7 +575,6 @@ fun AdminAttendanceScreen(
                 }
             }
 
-            // ── Bottom detail panel ───────────────────────────────────────────
             val currentDetail: Student? = detailStudent
             if (currentDetail != null) {
                 val name     = StubRepository.getUserDisplayName(currentDetail.user)
@@ -593,14 +590,12 @@ fun AdminAttendanceScreen(
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
                         .background(PanelBg)
-                        // Consume touches so they don't reach the outer dismiss handler
                         .clickable(
                             indication        = null,
                             interactionSource = remember { MutableInteractionSource() }
                         ) {}
                         .padding(horizontal = 20.dp, vertical = 16.dp)
                 ) {
-                    // Student identity row
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier         = Modifier
@@ -685,7 +680,6 @@ fun AdminAttendanceScreen(
     }
 }
 
-// ── Top Bar ───────────────────────────────────────────────────────────────────
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AttendanceTopBar(onNavigate: (String) -> Unit, onExport: () -> Unit) {
@@ -707,7 +701,6 @@ private fun AttendanceTopBar(onNavigate: (String) -> Unit, onExport: () -> Unit)
     )
 }
 
-// ── Filter Pill ───────────────────────────────────────────────────────────────
 @Composable
 private fun FilterPill(label: String, icon: ImageVector, onClick: () -> Unit) {
     Row(
@@ -728,7 +721,6 @@ private fun FilterPill(label: String, icon: ImageVector, onClick: () -> Unit) {
     }
 }
 
-// ── Stat Circle ───────────────────────────────────────────────────────────────
 @Composable
 private fun StatCircle(value: String, label: String, icon: ImageVector, tint: Color) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -750,7 +742,6 @@ private fun StatCircle(value: String, label: String, icon: ImageVector, tint: Co
     }
 }
 
-// ── Student Attendance Row ────────────────────────────────────────────────────
 @Composable
 private fun StudentAttendanceRow(
     name: String,
@@ -780,7 +771,6 @@ private fun StudentAttendanceRow(
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Avatar with a small note badge if a remark exists
         Box(contentAlignment = Alignment.TopEnd) {
             Box(
                 modifier         = Modifier
@@ -847,7 +837,6 @@ private fun StudentAttendanceRow(
     }
 }
 
-// ── Action icon button ────────────────────────────────────────────────────────
 @Composable
 private fun ActionIconBtn(icon: ImageVector, tint: Color, onClick: () -> Unit) {
     Box(
@@ -865,11 +854,188 @@ private fun ActionIconBtn(icon: ImageVector, tint: Color, onClick: () -> Unit) {
         Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(14.dp))
     }
 }
-// ── Date → DayEnum extension ──────────────────────────────────────────────────
-/**
- * Converts a [java.util.Date] to the matching [DayEnum] value.
- * Accepts an optional [Calendar] instance to avoid repeated allocations.
- */
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CsvUploadDialog(
+    courses:        List<Course>,
+    selectedCourse: Course,
+    onDismiss:      () -> Unit,
+    onConfirm:      (studentName: String, course: Course) -> Unit
+) {
+    var studentName     by remember { mutableStateOf("") }
+    var chosenCourse    by remember { mutableStateOf(selectedCourse) }
+    var showDropdown    by remember { mutableStateOf(false) }
+    var confirmationMsg by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor   = Color(0xFF111E2B),
+        shape            = RoundedCornerShape(16.dp),
+        title            = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.UploadFile,
+                    contentDescription = null,
+                    tint     = TealChip,
+                    modifier = Modifier.size(22.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Upload CSV",
+                    color      = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize   = 17.sp
+                )
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(TealChip.copy(alpha = 0.12f))
+                        .padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Info,
+                        contentDescription = null,
+                        tint     = TealChip,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "Enter a row from your CSV file. The student will be marked Present.",
+                        color    = Color(0xFF90A4AE),
+                        fontSize = 11.sp
+                    )
+                }
+
+                Text(
+                    "STUDENT NAME",
+                    color         = UnmarkedColor,
+                    fontSize      = 10.sp,
+                    fontWeight    = FontWeight.SemiBold,
+                    letterSpacing = 0.8.sp
+                )
+                TextField(
+                    value         = studentName,
+                    onValueChange = { studentName = it; confirmationMsg = null },
+                    placeholder   = { Text("e.g. Alex Smith", color = UnmarkedColor, fontSize = 13.sp) },
+                    singleLine    = true,
+                    modifier      = Modifier.fillMaxWidth(),
+                    colors        = TextFieldDefaults.colors(
+                        focusedContainerColor   = Color(0xFF0A1929),
+                        unfocusedContainerColor = Color(0xFF0A1929),
+                        focusedTextColor        = Color.White,
+                        unfocusedTextColor      = Color.White,
+                        focusedIndicatorColor   = TealChip,
+                        unfocusedIndicatorColor = Color.Transparent
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                )
+
+                Text(
+                    "COURSE",
+                    color         = UnmarkedColor,
+                    fontSize      = 10.sp,
+                    fontWeight    = FontWeight.SemiBold,
+                    letterSpacing = 0.8.sp
+                )
+                Box {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFF0A1929))
+                            .clickable(
+                                indication        = null,
+                                interactionSource = remember { MutableInteractionSource() }
+                            ) { showDropdown = true }
+                            .padding(horizontal = 12.dp, vertical = 14.dp),
+                        verticalAlignment     = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            "${chosenCourse.courseCode} – ${chosenCourse.title}",
+                            color    = Color.White,
+                            fontSize = 13.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, tint = UnmarkedColor)
+                    }
+                    DropdownMenu(
+                        expanded         = showDropdown,
+                        onDismissRequest = { showDropdown = false },
+                        modifier         = Modifier.background(Color(0xFF0D2233))
+                    ) {
+                        courses.forEach { course ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        "${course.courseCode} – ${course.title}",
+                                        color      = if (course.courseId == chosenCourse.courseId) TealChip else Color.White,
+                                        fontWeight = if (course.courseId == chosenCourse.courseId) FontWeight.Bold else FontWeight.Normal,
+                                        fontSize   = 13.sp
+                                    )
+                                },
+                                onClick = {
+                                    chosenCourse = course
+                                    showDropdown = false
+                                    confirmationMsg = null
+                                }
+                            )
+                        }
+                    }
+                }
+
+                confirmationMsg?.let { msg ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(PresentColor.copy(alpha = 0.12f))
+                            .padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = PresentColor, modifier = Modifier.size(15.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(msg, color = PresentColor, fontSize = 12.sp)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick  = {
+                    if (studentName.isNotBlank()) {
+                        onConfirm(studentName, chosenCourse)
+                    }
+                },
+                enabled  = studentName.isNotBlank(),
+                colors   = ButtonDefaults.buttonColors(
+                    containerColor  = TealChip,
+                    disabledContainerColor = TealChip.copy(alpha = 0.3f)
+                ),
+                shape    = RoundedCornerShape(10.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.Upload, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Mark as Present", fontWeight = FontWeight.Bold, color = Color.White)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = UnmarkedColor)
+            }
+        }
+    )
+}
+
 private fun java.util.Date.toDayEnum(cal: Calendar = Calendar.getInstance()): DayEnum {
     cal.time = this
     return when (cal.get(Calendar.DAY_OF_WEEK)) {

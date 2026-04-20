@@ -30,12 +30,6 @@ import com.ims.app.util.exportMonthlyAttendancePdf
 import java.text.SimpleDateFormat
 import java.util.*
 
-/**
- * Monthly Attendance Screen.
- *
- * PDF icon → exports a monthly report for ALL courses for the month
- * currently shown on screen (calYear / calMonth).
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MonthlyAttendanceScreen(
@@ -46,22 +40,16 @@ fun MonthlyAttendanceScreen(
 ) {
     val context = LocalContext.current
 
-    //  Filter state
     var selectedCourse       by remember { mutableStateOf(viewModel.allCourses.firstOrNull()) }
     var showCourseSheet      by remember { mutableStateOf(false) }
     var pendingCourse        by remember { mutableStateOf(selectedCourse) }
     var sheetSearch          by remember { mutableStateOf("") }
     var viewModeMenuExpanded by remember { mutableStateOf(false) }
     var isExporting          by remember { mutableStateOf(false) }
-
-    // Calendar navigation
     val today    = remember { Calendar.getInstance() }
     var calYear  by remember { mutableStateOf(today.get(Calendar.YEAR))  }
     var calMonth by remember { mutableStateOf(today.get(Calendar.MONTH)) }
 
-    // Derived attendance data
-
-    // All records for the viewed month across ALL courses (used for PDF export)
     val allMonthRecords by remember(calYear, calMonth) {
         derivedStateOf {
             viewModel.getAttendanceRecords().filter { r ->
@@ -72,7 +60,6 @@ fun MonthlyAttendanceScreen(
         }
     }
 
-    // Records for the selected course only (hero card + calendar)
     val allRecords by remember(selectedCourse) {
         derivedStateOf {
             selectedCourse
@@ -112,7 +99,6 @@ fun MonthlyAttendanceScreen(
         SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(cal.time).uppercase()
     }
 
-    // Grid with prev/next month bleed-in
     val gridDays: List<Pair<Int, Boolean>> = remember(calYear, calMonth) {
         val cal         = Calendar.getInstance().apply { set(calYear, calMonth, 1) }
         val firstDow    = cal.get(Calendar.DAY_OF_WEEK) - 1
@@ -134,7 +120,6 @@ fun MonthlyAttendanceScreen(
     val isThisMonth = calYear  == today.get(Calendar.YEAR) &&
             calMonth == today.get(Calendar.MONTH)
 
-    // Course bottom sheet
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     if (showCourseSheet) {
         ModalBottomSheet(
@@ -164,7 +149,6 @@ fun MonthlyAttendanceScreen(
         }
     }
 
-    // Scaffold
     Scaffold(
         topBar = {
             TopAppBar(
@@ -184,7 +168,6 @@ fun MonthlyAttendanceScreen(
                     )
                 },
                 actions = {
-                    // PDF export button
                     IconButton(
                         onClick = {
                             if (isExporting) return@IconButton
@@ -244,8 +227,6 @@ fun MonthlyAttendanceScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-
-            //  Filter row
             item {
                 Spacer(Modifier.height(4.dp))
                 Row(
@@ -290,7 +271,6 @@ fun MonthlyAttendanceScreen(
                 }
             }
 
-            //  Month navigator
             item {
                 Row(
                     modifier              = Modifier.fillMaxWidth(),
@@ -313,7 +293,6 @@ fun MonthlyAttendanceScreen(
                 }
             }
 
-            // Hero summary card
             item {
                 selectedCourse?.let { course ->
                     MonthlyHeroCard(
@@ -325,7 +304,6 @@ fun MonthlyAttendanceScreen(
                 }
             }
 
-            //  Calendar grid
             item {
                 CalendarGrid(
                     gridDays     = gridDays,
@@ -334,7 +312,6 @@ fun MonthlyAttendanceScreen(
                 )
             }
 
-            //Legend
             item {
                 Row(
                     modifier              = Modifier
@@ -356,8 +333,6 @@ fun MonthlyAttendanceScreen(
     }
 }
 
-
-// Filled filter chip (blue bg)
 @Composable
 private fun FilledFilterChipButton(
     label:    String,
@@ -383,7 +358,6 @@ private fun FilledFilterChipButton(
     }
 }
 
-// Hero card
 @Composable
 private fun MonthlyHeroCard(
     courseTitle:  String,
@@ -462,7 +436,6 @@ private fun HeroPill(count: Int, label: String, dotColor: Color) {
     }
 }
 
-// Calendar grid
 @Composable
 private fun CalendarGrid(
     gridDays:     List<Pair<Int, Boolean>>,
@@ -524,7 +497,6 @@ private fun CalendarDayCell(
         AttendanceStatus.APPROVED_LEAVE -> "L"
         else                            -> null
     }
-    // Today ALWAYS solid green – overrides any status colour
     val cellBg: Color = when {
         isToday            -> Primary
         badgeColor != null -> badgeColor.copy(alpha = 0.20f)

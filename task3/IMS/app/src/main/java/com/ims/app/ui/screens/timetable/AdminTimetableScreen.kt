@@ -27,7 +27,6 @@ import com.ims.app.ui.IMSViewModel
 import com.ims.app.ui.components.BottomNavBar
 import com.ims.app.ui.theme.*
 
-// ── Colour tokens (Figma teal palette) ────────────────────────────────────────
 private val SlotCardBg    = Color(0xFF00897B)
 private val SlotCardDark  = Color(0xFF00695C)
 private val ConflictBg    = Color(0xFF1A2C20)
@@ -35,12 +34,6 @@ private val ConflictAmber = Color(0xFFFFB300)
 private val DayCircleBg   = Color(0xFF1A2C3D)
 private val FilterChipBg  = Color(0xFF1A3448)
 
-// ── Computed workload helpers ─────────────────────────────────────────────────
-
-/**
- * Counts total scheduled hours across all timetable slots for a given semester.
- * Each slot contributes (endHour - startHour) hours.
- */
 private fun computeWeeklyLoad(slots: List<TimetableSlot>): Int =
     slots.sumOf { slot ->
         try {
@@ -50,13 +43,8 @@ private fun computeWeeklyLoad(slots: List<TimetableSlot>): Int =
         } catch (_: Exception) { 0 }
     }
 
-/** Maximum allowed weekly teaching hours (configurable constant). */
 private const val MAX_WEEKLY_LOAD = 20
 
-/**
- * Detects conflicts: two slots on the same day whose time ranges overlap.
- * Returns a list of conflicting slot pairs as human-readable descriptions.
- */
 private fun detectConflicts(slots: List<TimetableSlot>): List<String> {
     val conflicts = mutableListOf<String>()
     val byDay = slots.groupBy { it.day }
@@ -90,9 +78,6 @@ private fun toMinutes(time: String): Int {
     return parts[0].toInt() * 60 + (parts.getOrNull(1)?.toInt() ?: 0)
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** Admin Timetable Management — Figma-accurate UI with computed stats */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminTimetableScreen(
@@ -108,15 +93,12 @@ fun AdminTimetableScreen(
     var selectedRoom  by remember { mutableStateOf("ROOM") }
     var showConflictDetail by remember { mutableStateOf(false) }
 
-    // ── Course filter (driven by top-bar filter icon) ─────────────────────────
     var selectedCourseFilter by remember { mutableStateOf<Course?>(null) }
     var showCourseFilter     by remember { mutableStateOf(false) }
 
-    // ── Computed stats (reactive to selectedSem) ──────────────────────────────
     val allSlots  = viewModel.getTimetableForSemester(selectedSem)
     val daySlots  = allSlots.filter { it.day == selectedDay }
 
-    // Room filter applied on top
     val visibleSlots = daySlots
         .let { slots -> if (selectedRoom == "ROOM") slots else slots.filter { it.room.name == selectedRoom } }
         .let { slots -> if (selectedCourseFilter == null) slots else slots.filter { it.course.courseId == selectedCourseFilter!!.courseId } }
@@ -127,10 +109,8 @@ fun AdminTimetableScreen(
     val conflicts     = detectConflicts(allSlots)
     val conflictCount = conflicts.size
 
-    // Room options derived from actual data
     val roomOptions = listOf("ROOM") + allSlots.map { it.room.name }.distinct().sorted()
 
-    // ── Conflict detail sheet ─────────────────────────────────────────────────
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     if (showConflictDetail && conflicts.isNotEmpty()) {
         ModalBottomSheet(
@@ -178,7 +158,6 @@ fun AdminTimetableScreen(
         }
     }
 
-    // ── Course filter bottom sheet ────────────────────────────────────────────
     val filterSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     if (showCourseFilter) {
         ModalBottomSheet(
@@ -216,7 +195,6 @@ fun AdminTimetableScreen(
                 )
                 HorizontalDivider(color = Divider)
 
-                // "All" option
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -232,7 +210,6 @@ fun AdminTimetableScreen(
                         Icon(Icons.Default.CheckCircle, null, tint = Primary, modifier = Modifier.size(20.dp))
                 }
 
-                // One row per course
                 viewModel.allCourses.forEach { course ->
                     val isSelected = selectedCourseFilter?.courseId == course.courseId
                     Row(
@@ -268,7 +245,6 @@ fun AdminTimetableScreen(
         }
     }
 
-    // ── Full-screen Add/Edit — overlays the main scaffold ────────────────────
     if (showAddDialog) {
         AddTimetableSlotScreen(
             existingSlot = editingSlot,
@@ -283,7 +259,7 @@ fun AdminTimetableScreen(
                 editingSlot   = null
             }
         )
-        return   // don't render the list scaffold underneath
+        return  
     }
 
     Scaffold(
@@ -310,7 +286,6 @@ fun AdminTimetableScreen(
         ) {
             item { Spacer(Modifier.height(4.dp)) }
 
-            // ── DEPT / SEM / ROOM filter row ──────────────────────────────────
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     DropdownFilterChip(
@@ -331,7 +306,6 @@ fun AdminTimetableScreen(
                 }
             }
 
-            // ── Day circle tabs ───────────────────────────────────────────────
             item {
                 Row(
                     modifier              = Modifier.fillMaxWidth(),
@@ -367,14 +341,12 @@ fun AdminTimetableScreen(
                 }
             }
 
-            // ── Instructor Weekly Load ────────────────────────────────────────
-            // Only rendered when there are actual slots to measure
             if (allSlots.isNotEmpty()) {
                 item {
                     val barColor = when {
-                        loadPctInt >= 90 -> Color(0xFFEF5350)  // over-loaded → red
-                        loadPctInt >= 70 -> Color(0xFFFFA726)  // near limit  → amber
-                        else             -> Primary            // healthy      → teal
+                        loadPctInt >= 90 -> Color(0xFFEF5350)  
+                        loadPctInt >= 70 -> Color(0xFFFFA726)  
+                        else             -> Primary            
                     }
                     Card(
                         colors   = CardDefaults.cardColors(containerColor = CardBg),
@@ -414,7 +386,6 @@ fun AdminTimetableScreen(
                 }
             }
 
-            // ── Conflicts banner — only shown when conflicts > 0 ──────────────
             if (conflictCount > 0) {
                 item {
                     Row(
@@ -453,7 +424,6 @@ fun AdminTimetableScreen(
                 }
             }
 
-            // ── Day header ────────────────────────────────────────────────────
             item {
                 Row(
                     modifier              = Modifier.fillMaxWidth(),
@@ -475,7 +445,6 @@ fun AdminTimetableScreen(
                 }
             }
 
-            // ── Slot cards ────────────────────────────────────────────────────
             if (visibleSlots.isEmpty()) {
                 item {
                     Box(
@@ -525,7 +494,6 @@ fun AdminTimetableScreen(
     }
 }
 
-// ── Top Bar ───────────────────────────────────────────────────────────────────
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TimetableTopBar(
@@ -549,7 +517,6 @@ private fun TimetableTopBar(
             }
         },
         actions = {
-            // Filter icon — tinted teal when a course filter is active
             IconButton(onClick = onFilterClick) {
                 Icon(
                     imageVector        = Icons.Default.FilterList,
@@ -558,7 +525,6 @@ private fun TimetableTopBar(
                 )
             }
 
-            // + icon to add a new slot
             IconButton(onClick = onAddClick) {
                 Icon(Icons.Default.Add, contentDescription = "Add Slot", tint = Primary)
             }
@@ -567,7 +533,6 @@ private fun TimetableTopBar(
     )
 }
 
-// ── Dropdown filter chip ──────────────────────────────────────────────────────
 @Composable
 private fun DropdownFilterChip(
     label: String,
@@ -608,7 +573,6 @@ private fun DropdownFilterChip(
     }
 }
 
-// ── Timetable slot card ───────────────────────────────────────────────────────
 @Composable
 private fun TimetableSlotCard(
     slot: TimetableSlot,
@@ -629,7 +593,6 @@ private fun TimetableSlotCard(
             .clip(RoundedCornerShape(20.dp))
             .background(SlotCardBg)
     ) {
-        // Left column: time + room
         Column(
             modifier = Modifier
                 .width(78.dp)
@@ -650,7 +613,6 @@ private fun TimetableSlotCard(
             )
         }
 
-        // Center: course title + code
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -668,7 +630,6 @@ private fun TimetableSlotCard(
             Text(slot.course.courseCode, color = Color.White.copy(0.70f), fontSize = 12.sp)
         }
 
-        // Right: instructor avatar + overflow menu
         Column(
             modifier            = Modifier.padding(end = 10.dp, top = 14.dp, bottom = 14.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -733,18 +694,6 @@ private fun TimetableSlotCard(
     }
 }
 
-// ── Add / Edit Timetable Slot — full screen (Figma "Timetable Slot Selection") ─
-/**
- * Full-screen replacement for the old Dialog.
- *
- * @param existingSlot   Non-null when editing an existing slot.
- * @param currentSem     Semester string passed from the parent ("Sem 5", "Sem 6", …).
- * @param allRooms       All available rooms from the ViewModel / repository.
- * @param existingSlots  All slots already in the timetable (used for conflict detection).
- * @param courses        All courses available for selection.
- * @param onBack         Called when the user presses the back arrow — parent hides the screen.
- * @param onSave         Called with the fully-constructed TimetableSlot on confirmation.
- */
 @Composable
 private fun AddTimetableSlotScreen(
     existingSlot  : TimetableSlot?,
@@ -755,7 +704,6 @@ private fun AddTimetableSlotScreen(
     onBack        : () -> Unit,
     onSave        : (TimetableSlot) -> Unit
 ) {
-    // ── Editable state (pre-filled when editing) ──────────────────────────────
     var selectedCourse by remember { mutableStateOf(existingSlot?.course ?: courses.first()) }
     var selectedDate   by remember { mutableStateOf(existingSlot?.let { formatSlotDate(it) } ?: todayLabel()) }
     var startTime      by remember { mutableStateOf(existingSlot?.start ?: "09:00") }
@@ -763,7 +711,6 @@ private fun AddTimetableSlotScreen(
     var selectedRoom   by remember { mutableStateOf<Room?>(existingSlot?.room) }
     var roomExpanded   by remember { mutableStateOf(false) }
 
-    // ── Conflict detection (reactive) ─────────────────────────────────────────
     val conflictInfo: ConflictInfo = remember(selectedRoom, startTime, endTime, selectedDate) {
         detectSlotConflict(
             newStart     = startTime,
@@ -781,7 +728,6 @@ private fun AddTimetableSlotScreen(
             )
         },
         bottomBar = {
-            // "Confirm Schedule Slot →" button pinned to the bottom
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -842,7 +788,6 @@ private fun AddTimetableSlotScreen(
         ) {
             item { Spacer(Modifier.height(4.dp)) }
 
-            // ── SUBJECT COURSE ────────────────────────────────────────────
             item {
                 SlotSectionLabel("SUBJECT COURSE")
                 Spacer(Modifier.height(8.dp))
@@ -853,7 +798,6 @@ private fun AddTimetableSlotScreen(
                 )
             }
 
-            // ── DATE  +  TIME SLOT ────────────────────────────────────────
             item {
                 Row(
                     modifier              = Modifier.fillMaxWidth(),
@@ -880,7 +824,6 @@ private fun AddTimetableSlotScreen(
                 }
             }
 
-            // ── VENUE SELECTION ───────────────────────────────────────────
             item {
                 SlotSectionLabel("VENUE SELECTION")
                 Spacer(Modifier.height(8.dp))
@@ -897,7 +840,6 @@ private fun AddTimetableSlotScreen(
                 )
             }
 
-            // ── CONFLICT STATUS BANNER ────────────────────────────────────
             item {
                 ConflictStatusBanner(conflictInfo)
             }
@@ -907,7 +849,6 @@ private fun AddTimetableSlotScreen(
     }
 }
 
-// ── Top bar for Add/Edit screen ───────────────────────────────────────────────
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AddSlotTopBar(isEdit: Boolean, onBack: () -> Unit) {
@@ -929,7 +870,6 @@ private fun AddSlotTopBar(isEdit: Boolean, onBack: () -> Unit) {
     )
 }
 
-// ── Shared section label ──────────────────────────────────────────────────────
 @Composable
 private fun SlotSectionLabel(text: String) {
     Text(
@@ -941,11 +881,6 @@ private fun SlotSectionLabel(text: String) {
     )
 }
 
-// ── Course selector row ───────────────────────────────────────────────────────
-/**
- * Displays the selected course in a pill-shaped row with a book icon.
- * Tapping cycles to a dropdown-style picker showing all available courses.
- */
 @Composable
 private fun CourseSelector(
     courses: List<Course>,
@@ -1011,12 +946,6 @@ private fun CourseSelector(
     }
 }
 
-// ── Date selector ─────────────────────────────────────────────────────────────
-/**
- * Shows the selected date with a calendar icon.
- * In a production build this would open a DatePickerDialog;
- * here it cycles through the next 7 days as a stub.
- */
 @Composable
 private fun DateSelector(label: String, onSelect: (String) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
@@ -1053,11 +982,6 @@ private fun DateSelector(label: String, onSelect: (String) -> Unit) {
     }
 }
 
-// ── Time slot selector ────────────────────────────────────────────────────────
-/**
- * Displays start–end time in a single pill.
- * Tapping either end opens a small time-picker dropdown (30-min increments).
- */
 @Composable
 private fun TimeSlotSelector(
     start: String,
@@ -1080,7 +1004,6 @@ private fun TimeSlotSelector(
         Icon(Icons.Default.AccessTime, null, tint = Primary, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(8.dp))
 
-        // Start time
         Box {
             Text(
                 start,
@@ -1108,7 +1031,6 @@ private fun TimeSlotSelector(
 
         Text(" – ", color = OnSurface, fontSize = 13.sp)
 
-        // End time
         Box {
             Text(
                 end,
@@ -1136,12 +1058,6 @@ private fun TimeSlotSelector(
     }
 }
 
-// ── Venue selector ────────────────────────────────────────────────────────────
-/**
- * Collapsible room list.  Each room shows name, capacity, and an "IN USE" badge
- * when the room is occupied during the chosen time window.
- * A teal checkmark indicates the currently selected room.
- */
 @Composable
 private fun VenueSelector(
     rooms       : List<Room>,
@@ -1157,7 +1073,6 @@ private fun VenueSelector(
             .clip(RoundedCornerShape(14.dp))
             .background(SurfaceVar)
     ) {
-        // Header row (always visible)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1182,7 +1097,6 @@ private fun VenueSelector(
             )
         }
 
-        // Expandable room list
         if (expanded) {
             HorizontalDivider(color = Divider.copy(alpha = 0.5f))
             rooms.forEach { room ->
@@ -1220,11 +1134,6 @@ private fun VenueSelector(
     }
 }
 
-// ── Conflict status banner ────────────────────────────────────────────────────
-/**
- * Shows either a green "No Conflict Detected" or a red/amber conflict warning
- * depending on the result of [detectSlotConflict].
- */
 @Composable
 private fun ConflictStatusBanner(info: ConflictInfo) {
     val bgColor   = if (info.isAvailable) Color(0xFF1B3A2A) else ConflictBg
@@ -1262,19 +1171,12 @@ private fun ConflictStatusBanner(info: ConflictInfo) {
     }
 }
 
-// ── Data classes & pure helper functions (no hardcoded stubs) ─────────────────
-
-/** Result of a slot-conflict check. */
 data class ConflictInfo(
     val isAvailable  : Boolean,
     val conflictCount: Int,
     val details      : List<String>
 )
 
-/**
- * Checks whether [newStart]–[newEnd] on [newRoom] overlaps any slot in [existingSlots].
- * Room conflicts and time-only conflicts are both reported.
- */
 private fun detectSlotConflict(
     newStart     : String,
     newEnd       : String,
@@ -1296,10 +1198,6 @@ private fun detectSlotConflict(
     )
 }
 
-/**
- * Returns the set of room IDs that are in use during [newStart]–[newEnd],
- * excluding the slot being edited ([editingSlotId]).
- */
 private fun getBusyRoomIds(
     newStart     : String,
     newEnd       : String,
@@ -1310,7 +1208,6 @@ private fun getBusyRoomIds(
     .map { it.room.roomId }
     .toSet()
 
-/** Returns today's date as a display label (e.g. "Oct 24, 2023"). */
 private fun todayLabel(): String {
     val cal = java.util.Calendar.getInstance()
     return "%s %d, %d".format(
@@ -1320,7 +1217,6 @@ private fun todayLabel(): String {
     )
 }
 
-/** Returns display labels for the next 7 calendar days. */
 private fun nextSevenDayLabels(): List<String> {
     val months = listOf("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
     val cal    = java.util.Calendar.getInstance()
@@ -1332,13 +1228,8 @@ private fun nextSevenDayLabels(): List<String> {
     }
 }
 
-/** Returns a display label for an existing slot's date (uses today as stub). */
 private fun formatSlotDate(slot: TimetableSlot): String = todayLabel()
 
-/**
- * Parses a day-of-week from a date label by checking today vs the next 6 days.
- * Falls back to MONDAY if the label can't be matched.
- */
 private fun parseDayFromDate(label: String): DayEnum {
     val days   = nextSevenDayLabels()
     val idx    = days.indexOf(label)
@@ -1355,7 +1246,6 @@ private fun parseDayFromDate(label: String): DayEnum {
     }
 }
 
-/** Generates time options in 30-minute increments from 07:00 to 21:00. */
 private fun generateTimeOptions(): List<String> {
     val options = mutableListOf<String>()
     for (h in 7..21) {

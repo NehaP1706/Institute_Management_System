@@ -29,31 +29,18 @@ import com.ims.app.ui.IMSViewModel
 import com.ims.app.ui.Screen
 import com.ims.app.ui.theme.*
 
-/**
- * Combined Login + Sign-Up screen.
- *
- * FIX: [onLoginSuccess] now receives the destination route so the nav host
- * can send admins to [Screen.Dashboard] and students to
- * [Screen.Dashboard] (same composable, but the composable itself now renders
- * role-appropriate content).  If you later create a dedicated StudentDashboard
- * screen just change the route returned here.
- */
 @Composable
 fun LoginScreen(
     viewModel: IMSViewModel,
-    onLoginSuccess: (route: String) -> Unit,   // FIX: carries the destination route
-    onNavigateToSignUp: () -> Unit              // kept for nav-graph back-compat; unused internally
+    onLoginSuccess: (route: String) -> Unit,   
+    onNavigateToSignUp: () -> Unit              
 ) {
-    // ── Tab state ────────────────────────────────────────────────────────
     var isLoginTab by remember { mutableStateOf(true) }
-
-    // ── Login fields ─────────────────────────────────────────────────────
     var loginEmail    by remember { mutableStateOf("") }
     var loginPassword by remember { mutableStateOf("") }
     var showLoginPass by remember { mutableStateOf(false) }
     val loginError = viewModel.loginError
 
-    // ── Sign-up fields ───────────────────────────────────────────────────
     var name             by remember { mutableStateOf("") }
     var signUpEmail      by remember { mutableStateOf("") }
     var signUpPass       by remember { mutableStateOf("") }
@@ -61,16 +48,10 @@ fun LoginScreen(
     var showSignUpPass   by remember { mutableStateOf(false) }
     var showConfirmPass  by remember { mutableStateOf(false) }
     var signUpError      by remember { mutableStateOf<String?>(null) }
-
-    // FIX: Navigate to the correct destination based on the user's role,
-    // not blindly to Dashboard every time.
+    
     val user = viewModel.currentUser
     LaunchedEffect(user) {
         if (user != null) {
-            // All roles currently land on Dashboard, but the Dashboard
-            // composable now branches its UI by role.  If you add a dedicated
-            // StudentDashboard route in Navigation.kt, swap it in here:
-            //   Screen.StudentDashboard.route for students
             val destination = Screen.Dashboard.route
             onLoginSuccess(destination)
         }
@@ -81,7 +62,6 @@ fun LoginScreen(
             .fillMaxSize()
             .background(Background)
     ) {
-        // ── Globe / language icon ─────────────────────────────────────────
         IconButton(
             onClick = { /* language picker placeholder */ },
             modifier = Modifier
@@ -95,7 +75,6 @@ fun LoginScreen(
             )
         }
 
-        // ── Centred body ──────────────────────────────────────────────────
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -104,7 +83,6 @@ fun LoginScreen(
             verticalArrangement = Arrangement.Center
         ) {
 
-            // Logo pill
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
@@ -138,7 +116,6 @@ fun LoginScreen(
 
             Spacer(Modifier.height(28.dp))
 
-            // ── Tab switcher ──────────────────────────────────────────────
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -175,7 +152,6 @@ fun LoginScreen(
 
             Spacer(Modifier.height(20.dp))
 
-            // ── Teal card ─────────────────────────────────────────────────
             Surface(
                 shape = RoundedCornerShape(32.dp),
                 color = Color(0xFF0F8584),
@@ -184,9 +160,6 @@ fun LoginScreen(
                 Column(Modifier.padding(horizontal = 20.dp, vertical = 24.dp)) {
 
                     if (isLoginTab) {
-                        // ── LOGIN CONTENT ─────────────────────────────────
-
-                        // Quick-login chips
                         Text(
                             text = "Quick Login",
                             color = OnSurface.copy(alpha = 0.5f),
@@ -213,7 +186,6 @@ fun LoginScreen(
 
                         Spacer(Modifier.height(6.dp))
 
-                        // Email field
                         CardFieldLabel("EMAIL")
                         Spacer(Modifier.height(6.dp))
                         OutlinedTextField(
@@ -238,7 +210,6 @@ fun LoginScreen(
 
                         Spacer(Modifier.height(16.dp))
 
-                        // Password field
                         CardFieldLabel("PASSWORD")
                         Spacer(Modifier.height(6.dp))
                         OutlinedTextField(
@@ -284,7 +255,7 @@ fun LoginScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.End
                         ) {
-                            TextButton(onClick = { /* TODO: forgot password */ }) {
+                            TextButton(onClick = { /* stubbed: forgot password */ }) {
                                 Text(
                                     text = "Forgot Password?",
                                     color = Color(0xFF76D6D5),
@@ -294,9 +265,6 @@ fun LoginScreen(
                         }
 
                     } else {
-                        // ── SIGN-UP CONTENT ───────────────────────────────
-
-                        // Full Name
                         CardFieldLabel("FULL NAME")
                         Spacer(Modifier.height(6.dp))
                         OutlinedTextField(
@@ -317,7 +285,6 @@ fun LoginScreen(
 
                         Spacer(Modifier.height(14.dp))
 
-                        // Email
                         CardFieldLabel("EMAIL")
                         Spacer(Modifier.height(6.dp))
                         OutlinedTextField(
@@ -342,7 +309,6 @@ fun LoginScreen(
 
                         Spacer(Modifier.height(14.dp))
 
-                        // Password
                         CardFieldLabel("PASSWORD")
                         Spacer(Modifier.height(6.dp))
                         OutlinedTextField(
@@ -376,7 +342,6 @@ fun LoginScreen(
 
                         Spacer(Modifier.height(14.dp))
 
-                        // Confirm Password
                         CardFieldLabel("CONFIRM PASSWORD")
                         Spacer(Modifier.height(6.dp))
                         OutlinedTextField(
@@ -424,7 +389,6 @@ fun LoginScreen(
 
             Spacer(Modifier.height(20.dp))
 
-            // ── CTA button ────────────────────────────────────────────────
             Button(
                 onClick = {
                     if (isLoginTab) {
@@ -462,7 +426,6 @@ fun LoginScreen(
 
             Spacer(Modifier.height(20.dp))
 
-            // ── Footer ────────────────────────────────────────────────────
             Text(
                 text = "By continuing you agree to our\nTerms & Privacy Policy",
                 color = OnSurface.copy(alpha = 0.45f),
@@ -473,8 +436,6 @@ fun LoginScreen(
         }
     }
 }
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 @Composable
 private fun CardFieldLabel(text: String) {

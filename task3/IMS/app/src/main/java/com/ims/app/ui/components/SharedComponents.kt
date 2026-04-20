@@ -18,8 +18,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ims.app.ui.theme.*
 
-// ── HeaderTopBar ─────────────────────────────────────────────────────────────
-/** Matches "HeaderTopBar" screen in Figma */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HeaderTopBar(
@@ -28,7 +26,7 @@ fun HeaderTopBar(
     userRole: String = "",
     onMenuClick: () -> Unit = {},
     onNotifClick: () -> Unit = {},
-    onNavigate: ((String) -> Unit)? = null   // convenience overload used by screens
+    onNavigate: ((String) -> Unit)? = null  
 ) {
     TopAppBar(
         title = {
@@ -63,8 +61,6 @@ fun HeaderTopBar(
     )
 }
 
-// ── BottomNavBar ─────────────────────────────────────────────────────────────
-/** Matches "BottomNavBar" screen in Figma */
 data class BottomNavItem(val label: String, val icon: ImageVector, val route: String)
 
 @Composable
@@ -100,7 +96,6 @@ fun BottomNavBar(
     }
 }
 
-// ── Stat Card ─────────────────────────────────────────────────────────────────
 @Composable
 fun StatCard(label: String, value: String, modifier: Modifier = Modifier) {
     Card(
@@ -118,7 +113,6 @@ fun StatCard(label: String, value: String, modifier: Modifier = Modifier) {
     }
 }
 
-// ── Section Header ────────────────────────────────────────────────────────────
 @Composable
 fun SectionHeader(text: String) {
     Text(
@@ -130,7 +124,6 @@ fun SectionHeader(text: String) {
     )
 }
 
-// ── Avatar Circle ─────────────────────────────────────────────────────────────
 @Composable
 fun AvatarCircle(initials: String, size: Int = 40) {
     Box(
@@ -144,7 +137,6 @@ fun AvatarCircle(initials: String, size: Int = 40) {
     }
 }
 
-// ── Attendance percent badge ───────────────────────────────────────────────────
 @Composable
 fun AttendanceBadge(percent: Float) {
     val color = when {

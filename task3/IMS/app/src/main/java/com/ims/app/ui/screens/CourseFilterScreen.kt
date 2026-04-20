@@ -23,11 +23,6 @@ import com.ims.app.ui.components.HeaderTopBar
 import com.ims.app.ui.components.SectionHeader
 import com.ims.app.ui.theme.*
 
-/**
- * Matches "Course Filter" screen in Figma.
- * Shows all courses with search + type-filter chips.
- * The course picker sheet has moved to AttendanceScreen / AdminAttendanceScreen.
- */
 @Composable
 fun CourseFilterScreen(
     viewModel: IMSViewModel,
@@ -66,7 +61,6 @@ fun CourseFilterScreen(
                 .padding(padding)
                 .padding(16.dp)
         ) {
-            // Search bar
             OutlinedTextField(
                 value         = searchQuery,
                 onValueChange = { searchQuery = it },
@@ -132,7 +126,6 @@ fun CourseFilterScreen(
     }
 }
 
-// ── Course detail card ────────────────────────────────────────────────────────
 @Composable
 private fun CourseDetailCard(
     courseCode: String,

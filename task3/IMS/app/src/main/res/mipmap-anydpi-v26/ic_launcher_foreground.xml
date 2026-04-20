@@ -4,10 +4,48 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path android:fillColor="#0D1B2A"
+
+    <!-- Background fill -->
+    <path
+        android:fillColor="#0D1B2A"
         android:pathData="M0,0h108v108h-108z"/>
-    <path android:fillColor="#FFFFFF"
-        android:pathData="M30,45 L30,63 M30,54 L42,54 M42,45 L42,63 M50,45 L50,63 L62,45 L62,63 M70,63 L70,45 L78,45 Q84,45 84,54 Q84,63 78,63 Z"
+
+    <!--
+        Letters drawn with strokeWidth=3, caps/joins=round.
+        Canvas: 108×108. Safe area (adaptive icon): 72×72 centred → x 18–90, y 18–90.
+        Three letters spaced evenly across x 22–86, vertically centred y 40–68.
+
+        I  — single vertical stroke + top/bottom serifs
+             x=30  y=40→68   serifs: x=26–34
+        M  — two uprights + V in between
+             left x=42, right x=58, peak x=50 y=55
+        S  — top arc + bottom arc (approximated with cubic bezier)
+             centred x=70–82
+    -->
+
+    <!-- I -->
+    <path
+        android:pathData="M30,40 L30,68 M26,40 L34,40 M26,68 L34,68"
         android:strokeColor="#FFFFFF"
-        android:strokeWidth="3"/>
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"/>
+
+    <!-- M -->
+    <path
+        android:pathData="M42,68 L42,40 L50,55 L58,40 L58,68"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"/>
+
+    <!-- S -->
+    <path
+        android:pathData="M82,44 Q82,40 76,40 Q70,40 70,47 Q70,54 76,54 Q82,54 82,61 Q82,68 76,68 Q70,68 70,64"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"/>
+
 </vector>

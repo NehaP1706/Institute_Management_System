@@ -27,20 +27,19 @@ import com.ims.app.data.model.PersonalTimetableSlot
 import com.ims.app.data.model.TimetableSlot
 import com.ims.app.ui.IMSViewModel
 
-// ── Design tokens (matching Figma exactly) ────────────────────────────────────
-private val BgDeep        = Color(0xFF0A1628)   // darkest navy background
-private val BgCard        = Color(0xFF0F2137)   // slightly lighter card bg (inactive)
-private val TealPrimary   = Color(0xFF1ABC9C)   // primary teal accent
-private val TealCard      = Color(0xFF0E7C6A)   // teal card fill (active classes)
-private val TealCardLight = Color(0xFF15A889)   // lighter teal for gradient
+private val BgDeep        = Color(0xFF0A1628)   
+private val BgCard        = Color(0xFF0F2137)   
+private val TealPrimary   = Color(0xFF1ABC9C)   
+private val TealCard      = Color(0xFF0E7C6A)   
+private val TealCardLight = Color(0xFF15A889)   
 private val TextWhite     = Color(0xFFFFFFFF)
-private val TextMuted     = Color(0xFF7A9BB5)   // muted blue-grey text
-private val TextSub       = Color(0xFFB0C4D8)   // secondary text
-private val AvatarBg      = Color(0xFF1E3A52)   // avatar circle bg
-private val OngoingAmber  = Color(0xFFFFB300)   // ONGOING badge
-private val ConflictBg    = Color(0xFF3D1A1A)   // conflict banner bg
-private val ConflictText  = Color(0xFFFF6B6B)   // conflict text/icon
-private val NavBg         = Color(0xFF0D1E30)   // bottom nav background
+private val TextMuted     = Color(0xFF7A9BB5)   
+private val TextSub       = Color(0xFFB0C4D8)   
+private val AvatarBg      = Color(0xFF1E3A52)   
+private val OngoingAmber  = Color(0xFFFFB300)   
+private val ConflictBg    = Color(0xFF3D1A1A)   
+private val ConflictText  = Color(0xFFFF6B6B)   
+private val NavBg         = Color(0xFF0D1E30)   
 private val InactiveNavBg = Color(0xFF0A1628)
 
 @Composable
@@ -52,7 +51,6 @@ fun TimetableScreen(
     var selectedDay    by remember { mutableStateOf(DayEnum.WEDNESDAY) }
     var showAddScreen  by remember { mutableStateOf(false) }
 
-    // ── Full-screen add-slot overlay ──────────────────────────────────────────
     if (showAddScreen) {
         AddPersonalSlotScreen(
             onBack = { showAddScreen = false },
@@ -67,11 +65,8 @@ fun TimetableScreen(
     val slots = viewModel.getTimetableForSemester(viewModel.selectedSemester)
         .filter { it.day == selectedDay }
 
-    // FIX: Read personal slots reactively from the ViewModel's mutableStateListOf
-    // so newly added slots appear immediately without needing a recomposition trigger
     val personalSlots = viewModel.personalSlots
 
-    // Detect conflicts: overlapping time slots on same day
     val hasConflict = slots.zipWithNext().any { (a, b) ->
         a.end > b.start
     }
@@ -100,14 +95,11 @@ fun TimetableScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-
-            // ── Day selector pills ────────────────────────────────────────────
             DaySelectorRow(
                 selectedDay = selectedDay,
                 onDaySelected = { selectedDay = it }
             )
 
-            // ── Semester / Batch subtitle ─────────────────────────────────────
             Spacer(Modifier.height(10.dp))
             Text(
                 text = "SEMESTER 4 · BATCH 2023",
@@ -122,7 +114,6 @@ fun TimetableScreen(
 
             Spacer(Modifier.height(18.dp))
 
-            // ── Slot list ─────────────────────────────────────────────────────
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
@@ -130,10 +121,7 @@ fun TimetableScreen(
                 verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
                 val slotsWithFlags = slots.mapIndexed { index, slot ->
-                    // Mark a slot as "ongoing" if it's the second slot in Figma (index == 1)
-                    // In production, compare against real current time
                     val isOngoing = index == 1
-                    // Mark as past if it's the last slot (index == slots.lastIndex)
                     val isPast = index == slots.lastIndex && slots.size > 2
                     Triple(slot, isOngoing, isPast)
                 }
@@ -148,7 +136,6 @@ fun TimetableScreen(
                         Spacer(Modifier.height(4.dp))
                     }
 
-                    // Conflict banner after first card if conflict exists
                     if (index == 0 && hasConflict) {
                         item(key = "conflict_$index") {
                             ConflictBanner()
@@ -157,7 +144,6 @@ fun TimetableScreen(
                     }
                 }
 
-                // FIX: Personal slots section — shown below regular slots
                 if (personalSlots.isNotEmpty()) {
                     item(key = "personal_header") {
                         Spacer(Modifier.height(12.dp))
@@ -194,8 +180,6 @@ fun TimetableScreen(
     }
 }
 
-// ── Top bar ───────────────────────────────────────────────────────────────────
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TimetableTopBar(onNavigate: (String) -> Unit) {
@@ -207,7 +191,6 @@ private fun TimetableTopBar(onNavigate: (String) -> Unit) {
             .height(56.dp),
         contentAlignment = Alignment.Center
     ) {
-        // Back arrow left-aligned
         IconButton(
             onClick = { onNavigate("back") },
             modifier = Modifier.align(Alignment.CenterStart)
@@ -218,7 +201,6 @@ private fun TimetableTopBar(onNavigate: (String) -> Unit) {
                 tint = TextWhite
             )
         }
-        // Centered title
         Text(
             text = "My Timetable",
             color = TextWhite,
@@ -229,14 +211,11 @@ private fun TimetableTopBar(onNavigate: (String) -> Unit) {
     }
 }
 
-// ── Day selector ──────────────────────────────────────────────────────────────
-
 @Composable
 private fun DaySelectorRow(
     selectedDay: DayEnum,
     onDaySelected: (DayEnum) -> Unit
 ) {
-    // Figma shows Mon Tue Wed Thu Fri Sat (6 days, no Sunday)
     val days = listOf(
         DayEnum.MONDAY, DayEnum.TUESDAY, DayEnum.WEDNESDAY,
         DayEnum.THURSDAY, DayEnum.FRIDAY, DayEnum.SATURDAY
@@ -271,15 +250,12 @@ private fun DaySelectorRow(
     }
 }
 
-// ── Slot card ─────────────────────────────────────────────────────────────────
-
 @Composable
 fun TimetableSlotCard(
     slot: TimetableSlot,
     isOngoing: Boolean = false,
     isPast: Boolean = false
 ) {
-    // Active cards: teal gradient fill; past cards: dark muted fill
     val cardBackground = if (isPast)
         Color(0xFF132233)
     else
@@ -294,7 +270,6 @@ fun TimetableSlotCard(
     val avatarBgColor     = if (isPast) Color(0xFF1C3347) else Color(0xFF0A5446)
     val avatarTextColor   = if (isPast) TextMuted  else TealPrimary
 
-    // Instructor initials derived from course title (first two words)
     val initials = slot.course.title
         .split(" ")
         .filter { it.isNotBlank() }
@@ -304,7 +279,6 @@ fun TimetableSlotCard(
         .take(2)
 
     Box(modifier = Modifier.fillMaxWidth()) {
-        // Card with teal or muted background
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -325,7 +299,6 @@ fun TimetableSlotCard(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                // Time column
                 Column(
                     horizontalAlignment = Alignment.Start,
                     modifier = Modifier.width(60.dp)
@@ -352,9 +325,7 @@ fun TimetableSlotCard(
 
                 Spacer(Modifier.width(4.dp))
 
-                // Course info
                 Column(modifier = Modifier.weight(1f)) {
-                    // Room line (small, above title – matches Figma layout)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = "Room ${slot.room.name}",
@@ -380,7 +351,6 @@ fun TimetableSlotCard(
 
                 Spacer(Modifier.width(10.dp))
 
-                // Avatar circle with initials
                 Box(
                     modifier = Modifier
                         .size(40.dp)
@@ -398,7 +368,6 @@ fun TimetableSlotCard(
             }
         }
 
-        // ONGOING badge — top-right corner, overlapping card edge
         if (isOngoing) {
             Box(
                 modifier = Modifier
@@ -419,8 +388,6 @@ fun TimetableSlotCard(
         }
     }
 }
-
-// ── Personal slot card ────────────────────────────────────────────────────────
 
 @Composable
 fun PersonalSlotCard(slot: PersonalTimetableSlot) {
@@ -444,7 +411,6 @@ fun PersonalSlotCard(slot: PersonalTimetableSlot) {
                 Text(slot.endTime,  color = TextMuted, fontSize = 12.sp)
             }
             Spacer(Modifier.width(4.dp))
-            // Info
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     "Personal",
@@ -465,7 +431,6 @@ fun PersonalSlotCard(slot: PersonalTimetableSlot) {
                 }
             }
             Spacer(Modifier.width(10.dp))
-            // Personal badge
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
@@ -477,8 +442,6 @@ fun PersonalSlotCard(slot: PersonalTimetableSlot) {
         }
     }
 }
-
-// ── Conflict banner ───────────────────────────────────────────────────────────
 
 @Composable
 private fun ConflictBanner() {
@@ -512,8 +475,6 @@ private fun ConflictBanner() {
     }
 }
 
-// ── "No more classes" block ───────────────────────────────────────────────────
-
 @Composable
 private fun NoMoreClassesBlock(
     emptyDay: Boolean = false,
@@ -523,7 +484,6 @@ private fun NoMoreClassesBlock(
         modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Rounded square icon container (like Figma's calendar-x block)
         Box(
             modifier = Modifier
                 .size(80.dp)
@@ -548,8 +508,6 @@ private fun NoMoreClassesBlock(
     }
 }
 
-// ── Bottom navigation ─────────────────────────────────────────────────────────
-
 @Composable
 private fun TimetableBottomNav(
     currentRoute: String,
@@ -566,7 +524,6 @@ private fun TimetableBottomNav(
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // HOME
             BottomNavItem(
                 label = "HOME",
                 icon = {
@@ -580,12 +537,10 @@ private fun TimetableBottomNav(
                 isSelected = currentRoute == "dashboard",
                 onClick = { onNavigate("dashboard") }
             )
-
-            // ATTENDANCE
+            
             BottomNavItem(
                 label = "ATTENDANCE",
                 icon = {
-                    // Checkmark / attendance icon
                     Icon(
                         imageVector = Icons.Default.CalendarToday,
                         contentDescription = "Attendance",
@@ -597,7 +552,6 @@ private fun TimetableBottomNav(
                 onClick = { onNavigate("attendance") }
             )
 
-            // TIMETABLE — active state shows teal pill bg
             val isTimetableActive = currentRoute == "timetable"
             Box(
                 modifier = Modifier
@@ -653,33 +607,18 @@ private fun BottomNavItem(
     }
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// Add Personal Timetable Slot — full screen, Figma style
-// Fields: Title (required), Time (start–end, required), Reason (optional)
-// ═════════════════════════════════════════════════════════════════════════════
-
-/**
- * Full-screen form for students to add a personal timetable entry.
- * Matches the Figma "Add Timetable Slot" layout but simplified to three fields:
- * Title, Time Slot, and an optional Reason.
- *
- * @param onBack  Called when the user presses the back arrow.
- * @param onSave  Called with the completed [PersonalTimetableSlot] on confirmation.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddPersonalSlotScreen(
     onBack: () -> Unit,
     onSave: (PersonalTimetableSlot) -> Unit
 ) {
-    // ── Editable state ────────────────────────────────────────────────────────
     var title      by remember { mutableStateOf("") }
     var startTime  by remember { mutableStateOf("09:00") }
     var endTime    by remember { mutableStateOf("10:00") }
     var reason     by remember { mutableStateOf("") }
     var titleError by remember { mutableStateOf(false) }
 
-    // ── Local colours (reuse TimetableScreen tokens) ──────────────────────────
     val sectionLabelColor = TextMuted
     val fieldBg           = Color(0xFF132233)
     val fieldText         = TextWhite
@@ -705,7 +644,6 @@ fun AddPersonalSlotScreen(
             )
         },
         bottomBar = {
-            // "Confirm Schedule Slot →" pinned at the bottom — same as admin screen
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -762,7 +700,6 @@ fun AddPersonalSlotScreen(
         ) {
             item { Spacer(Modifier.height(4.dp)) }
 
-            // ── TITLE ─────────────────────────────────────────────────────────
             item {
                 PersonalSlotSectionLabel("TITLE", sectionLabelColor)
                 Spacer(Modifier.height(8.dp))
@@ -782,7 +719,6 @@ fun AddPersonalSlotScreen(
                 )
             }
 
-            // ── TIME SLOT ─────────────────────────────────────────────────────
             item {
                 PersonalSlotSectionLabel("TIME SLOT", sectionLabelColor)
                 Spacer(Modifier.height(8.dp))
@@ -796,7 +732,6 @@ fun AddPersonalSlotScreen(
                 )
             }
 
-            // ── REASON (optional) ─────────────────────────────────────────────
             item {
                 PersonalSlotSectionLabel("REASON  (OPTIONAL)", sectionLabelColor)
                 Spacer(Modifier.height(8.dp))
@@ -821,8 +756,6 @@ fun AddPersonalSlotScreen(
     }
 }
 
-// ── Small helpers local to the add-slot screen ────────────────────────────────
-
 @Composable
 private fun PersonalSlotSectionLabel(text: String, color: Color) {
     Text(
@@ -834,10 +767,6 @@ private fun PersonalSlotSectionLabel(text: String, color: Color) {
     )
 }
 
-/**
- * Side-by-side start / end time pickers.
- * Each opens a dropdown with 30-minute increments from 07:00 to 21:00.
- */
 @Composable
 private fun PersonalTimeSlotRow(
     start: String,
@@ -855,7 +784,6 @@ private fun PersonalTimeSlotRow(
         modifier              = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // Start time
         Column(Modifier.weight(1f)) {
             Text("FROM", color = TextMuted, fontSize = 9.sp, letterSpacing = 1.sp)
             Spacer(Modifier.height(6.dp))
@@ -893,7 +821,6 @@ private fun PersonalTimeSlotRow(
             }
         }
 
-        // End time
         Column(Modifier.weight(1f)) {
             Text("TO", color = TextMuted, fontSize = 9.sp, letterSpacing = 1.sp)
             Spacer(Modifier.height(6.dp))
@@ -933,7 +860,6 @@ private fun PersonalTimeSlotRow(
     }
 }
 
-/** Generates time options in 30-minute increments from 07:00 to 21:00. */
 private fun personalTimeOptions(): List<String> {
     val list = mutableListOf<String>()
     for (h in 7..21) for (m in listOf(0, 30)) list.add("%02d:%02d".format(h, m))
